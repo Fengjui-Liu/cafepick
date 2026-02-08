@@ -13,10 +13,35 @@
 | Database | SQLite (MVP) → PostgreSQL + PostGIS | MVP 輕量啟動，之後可遷移 |
 | 部署 | Vercel (前端) + Railway/Render (後端) | 快速部署 |
 
-## 資料來源
+## 資料來源策略
 
-- Cafe Nomad API：匯入至自建資料庫
-- Google Maps API：地理位置、營業時間、評分（Phase 2）
+### MVP (Phase 1)：Cafe Nomad API → 匯入自建 DB
+
+Cafe Nomad 提供免費、無需 API key 的咖啡廳資料，包含 CaféPick 核心篩選所需的欄位：
+
+| Cafe Nomad 欄位 | 對應功能 |
+|----------------|---------|
+| `wifi` | WiFi 穩定度評分 |
+| `socket` | 插座數量評分 |
+| `quiet` | 安靜程度評分 |
+| `limited_time` | 有無限時 |
+| `seat` | 通常有位 |
+| `cheap` | 價格評分 |
+| `tasty` | 咖啡品質評分 |
+| `music` | 裝潢音樂評分 |
+| `latitude` / `longitude` | 地理座標 |
+| `address` | 地址 |
+| `mrt` | 最近捷運站 |
+| `open_time` | 營業時間 |
+| `url` | 官網連結 |
+| `standing_desk` | 可站立工作 |
+
+### Phase 2：Google Maps API 補充
+
+- 即時營業時間（更準確）
+- 店家照片
+- Google 評分
+- 整合使用者 Google Maps 收藏清單
 
 ## 專案結構
 
