@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Float, Text
+from sqlalchemy import Column, String, Float, Text, Boolean
 from app.database import Base
 
 
@@ -9,10 +9,13 @@ class Cafe(Base):
     name = Column(String, nullable=False, index=True)
     city = Column(String, nullable=False, index=True)
     address = Column(String)
+    district = Column(String, index=True)
     latitude = Column(Float)
     longitude = Column(Float)
     url = Column(String)
     mrt = Column(String)
+    mrt_station = Column(String, index=True)
+    bus_stop = Column(String)
     open_time = Column(Text)
 
     # Cafe Nomad ratings (0-5 scale)
@@ -23,6 +26,11 @@ class Cafe(Base):
     cheap = Column(Float, default=0)
     music = Column(Float, default=0)
     seat = Column(Float, default=0)
+    price = Column(Float)
+    quiet_level = Column(String)
+    has_wifi = Column(Boolean, default=False)
+    has_socket = Column(Boolean, default=False)
+    reservable = Column(Boolean)
 
     # Special features
     limited_time = Column(String)  # "yes", "no", "maybe"

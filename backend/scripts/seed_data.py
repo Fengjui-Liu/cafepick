@@ -7,6 +7,7 @@ Usage:
 
 import sys
 import os
+import re
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -32,6 +33,8 @@ SAMPLE_CAFES = [
         "seat": 3.5,
         "limited_time": "no",
         "standing_desk": "no",
+        "price": 110,
+        "reservable": False,
         "url": "",
     },
     {
@@ -52,6 +55,8 @@ SAMPLE_CAFES = [
         "seat": 3.0,
         "limited_time": "no",
         "standing_desk": "no",
+        "price": 220,
+        "reservable": True,
         "url": "",
     },
     {
@@ -72,6 +77,8 @@ SAMPLE_CAFES = [
         "seat": 2.5,
         "limited_time": "yes",
         "standing_desk": "no",
+        "price": 260,
+        "reservable": True,
         "url": "",
     },
     {
@@ -92,6 +99,8 @@ SAMPLE_CAFES = [
         "seat": 3.5,
         "limited_time": "no",
         "standing_desk": "no",
+        "price": 240,
+        "reservable": True,
         "url": "",
     },
     {
@@ -112,6 +121,8 @@ SAMPLE_CAFES = [
         "seat": 4.0,
         "limited_time": "no",
         "standing_desk": "no",
+        "price": 130,
+        "reservable": False,
         "url": "",
     },
     {
@@ -132,6 +143,8 @@ SAMPLE_CAFES = [
         "seat": 2.0,
         "limited_time": "yes",
         "standing_desk": "no",
+        "price": 210,
+        "reservable": True,
         "url": "",
     },
     {
@@ -152,6 +165,8 @@ SAMPLE_CAFES = [
         "seat": 2.5,
         "limited_time": "no",
         "standing_desk": "no",
+        "price": 120,
+        "reservable": False,
         "url": "",
     },
     {
@@ -172,6 +187,8 @@ SAMPLE_CAFES = [
         "seat": 3.0,
         "limited_time": "yes",
         "standing_desk": "no",
+        "price": 230,
+        "reservable": True,
         "url": "",
     },
     {
@@ -192,6 +209,8 @@ SAMPLE_CAFES = [
         "seat": 3.5,
         "limited_time": "no",
         "standing_desk": "no",
+        "price": 180,
+        "reservable": False,
         "url": "",
     },
     {
@@ -212,9 +231,57 @@ SAMPLE_CAFES = [
         "seat": 4.0,
         "limited_time": "no",
         "standing_desk": "yes",
+        "price": 190,
+        "reservable": True,
         "url": "",
     },
 ]
+
+
+def _normalize_mrt_station(mrt: str) -> str:
+    if not mrt:
+        return ""
+    value = re.sub(r"\(.*?\)", "", mrt)
+    value = re.split(r"(出口|Exit)", value)[0]
+    value = re.sub(r"\d+號?", "", value)
+    value = re.split(r"[#／/、,;；]", value)[0]
+    return value.strip()
+
+
+def _parse_district(address: str) -> str:
+    if not address:
+        return ""
+    match = re.search(r"([\u4e00-\u9fff]{1,3}區)", address)
+    return match.group(1) if match else ""
+
+
+def _quiet_level(score: float) -> str:
+    if score >= 4.0:
+        return "quiet"
+    if score >= 2.5:
+        return "normal"
+    return "loud"
+
+
+def _price_from_cheap(score: float) -> float:
+    if score <= 0:
+        return 0.0
+    min_price = 80.0
+    max_price = 300.0
+    return round(max_price - (max_price - min_price) * (score / 5.0), 0)
+
+
+def _augment_item(item: dict) -> dict:
+    augmented = dict(item)
+    augmented.setdefault("district", _parse_district(augmented.get("address", "")))
+    augmented.setdefault("mrt_station", _normalize_mrt_station(augmented.get("mrt", "")))
+    augmented.setdefault("bus_stop", None)
+    augmented.setdefault("has_wifi", augmented.get("wifi", 0) > 0)
+    augmented.setdefault("has_socket", augmented.get("socket", 0) > 0)
+    augmented.setdefault("quiet_level", _quiet_level(augmented.get("quiet", 0)))
+    augmented.setdefault("price", _price_from_cheap(augmented.get("cheap", 0)))
+    augmented.setdefault("reservable", False)
+    return augmented
 
 
 def main():
@@ -223,6 +290,7 @@ def main():
 
     count = 0
     for item in SAMPLE_CAFES:
+        item = _augment_item(item)
         existing = db.query(Cafe).filter(Cafe.id == item["id"]).first()
         if existing:
             for key, val in item.items():

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from typing import Optional
 from app.database import get_db
@@ -78,6 +78,5 @@ def get_recommendations(
 def get_cafe(cafe_id: str, db: Session = Depends(get_db)):
     cafe = db.query(Cafe).filter(Cafe.id == cafe_id).first()
     if not cafe:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Cafe not found")
     return cafe
