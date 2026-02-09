@@ -8,11 +8,21 @@ async function fetchJSON<T>(url: string): Promise<T> {
   return res.json();
 }
 
+function shouldIncludeParam(val: unknown): boolean {
+  return !(
+    val === undefined ||
+    val === null ||
+    val === "" ||
+    val === 0 ||
+    val === false
+  );
+}
+
 export async function getCafes(filters?: Partial<Filters>) {
   const params = new URLSearchParams();
   if (filters) {
     Object.entries(filters).forEach(([key, val]) => {
-      if (val !== undefined && val !== "" && val !== 0) {
+      if (shouldIncludeParam(val)) {
         params.set(key, String(val));
       }
     });
@@ -31,7 +41,7 @@ export async function getRecommendations(
 ) {
   const params = new URLSearchParams();
   Object.entries(filters).forEach(([key, val]) => {
-    if (val !== undefined && val !== "" && val !== 0) {
+    if (shouldIncludeParam(val)) {
       params.set(key, String(val));
     }
   });

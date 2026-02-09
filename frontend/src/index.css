@@ -1,33 +1,90 @@
 @import "tailwindcss";
 @import "leaflet/dist/leaflet.css";
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap");
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0.08 30);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0.01 100);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --radius: 0.625rem;
+  --background: oklch(0.98 0.01 90);
+  --foreground: oklch(0.16 0.03 40);
+  --card: oklch(0.985 0.01 80);
+  --card-foreground: oklch(0.16 0.03 40);
+  --primary: oklch(0.28 0.11 45);
+  --primary-foreground: oklch(0.98 0.01 90);
+  --secondary: oklch(0.93 0.03 90);
+  --secondary-foreground: oklch(0.2 0.04 40);
+  --muted: oklch(0.94 0.01 90);
+  --muted-foreground: oklch(0.48 0.03 50);
+  --accent: oklch(0.9 0.05 160);
+  --accent-foreground: oklch(0.18 0.05 150);
+  --destructive: oklch(0.58 0.23 28);
+  --border: oklch(0.87 0.02 80);
+  --ring: oklch(0.65 0.06 60);
+  --radius: 0.75rem;
 }
 
 body {
   margin: 0;
-  font-family: "Inter", system-ui, -apple-system, sans-serif;
-  background-color: var(--background);
+  font-family: "Space Grotesk", system-ui, -apple-system, sans-serif;
+  background:
+    radial-gradient(1200px 600px at 10% -10%, oklch(0.96 0.07 80), transparent 60%),
+    radial-gradient(900px 500px at 90% 0%, oklch(0.92 0.08 150), transparent 55%),
+    linear-gradient(180deg, oklch(0.985 0.01 90), oklch(0.96 0.01 90));
   color: var(--foreground);
   min-height: 100vh;
 }
 
 #root {
   min-height: 100vh;
+}
+
+.font-display {
+  font-family: "Fraunces", "Space Grotesk", serif;
+}
+
+.panel-shadow {
+  box-shadow:
+    0 1px 0 oklch(0.86 0.02 80),
+    0 12px 30px oklch(0.2 0.02 60 / 0.08);
+}
+
+.hero-glow {
+  background:
+    radial-gradient(400px 120px at 10% 20%, oklch(0.92 0.09 80 / 0.6), transparent 60%),
+    radial-gradient(300px 120px at 85% 30%, oklch(0.88 0.12 150 / 0.5), transparent 60%);
+}
+
+.fade-up {
+  animation: fadeUp 0.7s ease both;
+}
+
+.fade-up.delay-1 {
+  animation-delay: 0.08s;
+}
+
+.fade-up.delay-2 {
+  animation-delay: 0.16s;
+}
+
+.floaty {
+  animation: floaty 6s ease-in-out infinite;
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes floaty {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
 }

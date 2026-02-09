@@ -3,10 +3,13 @@ export interface Cafe {
   name: string;
   city: string;
   address: string;
+  district?: string;
   latitude: number;
   longitude: number;
   url: string;
   mrt: string;
+  mrt_station?: string;
+  bus_stop?: string | null;
   open_time: string;
   wifi: number;
   socket: number;
@@ -15,6 +18,11 @@ export interface Cafe {
   cheap: number;
   music: number;
   seat: number;
+  price?: number | null;
+  quiet_level?: "quiet" | "normal" | "loud";
+  has_wifi?: boolean;
+  has_socket?: boolean;
+  reservable?: boolean | null;
   limited_time: string;
   standing_desk: string;
 }
@@ -28,15 +36,19 @@ export interface CafeRecommendation {
 export interface Area {
   city: string;
   cafe_count: number;
+  districts?: string[];
   mrt_stations: string[];
 }
 
 export interface Filters {
   city: string;
-  wifi: number;
-  socket: number;
-  quiet: number;
-  cheap: number;
+  district: string;
+  mrt_station: string;
+  bus_stop: string;
+  wifi: boolean;
+  socket: boolean;
+  quiet_level: "" | "quiet" | "normal" | "loud";
+  max_price: number;
   limited_time: string;
-  mrt: string;
+  reservable: boolean;
 }

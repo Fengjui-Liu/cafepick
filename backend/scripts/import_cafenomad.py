@@ -136,7 +136,58 @@ def _parse_district(address: str) -> str:
     if not address:
         return ""
     match = re.search(r"([\u4e00-\u9fff]{1,3}區)", address)
-    return match.group(1) if match else ""
+    if match:
+        return match.group(1)
+    return _map_english_district(address)
+
+
+def _map_english_district(address: str) -> str:
+    normalized = address.lower()
+    district_map = {
+        "zhongzheng district": "中正區",
+        "datong district": "大同區",
+        "zhongshan district": "中山區",
+        "songshan district": "松山區",
+        "daan district": "大安區",
+        "wanhua district": "萬華區",
+        "xinyi district": "信義區",
+        "shilin district": "士林區",
+        "beitou district": "北投區",
+        "neihu district": "內湖區",
+        "nangang district": "南港區",
+        "wenshan district": "文山區",
+        "banqiao district": "板橋區",
+        "sanchong district": "三重區",
+        "zhonghe district": "中和區",
+        "yonghe district": "永和區",
+        "xinzhuang district": "新莊區",
+        "xindian district": "新店區",
+        "tucheng district": "土城區",
+        "luzhou district": "蘆洲區",
+        "shulin district": "樹林區",
+        "yingge district": "鶯歌區",
+        "sanxia district": "三峽區",
+        "ruifang district": "瑞芳區",
+        "tamsui district": "淡水區",
+        "xizhi district": "汐止區",
+        "shenkeng district": "深坑區",
+        "shiding district": "石碇區",
+        "pinglin district": "坪林區",
+        "sanzhi district": "三芝區",
+        "shimen district": "石門區",
+        "bali district": "八里區",
+        "pingxi district": "平溪區",
+        "shuangxi district": "雙溪區",
+        "gongliao district": "貢寮區",
+        "jinshan district": "金山區",
+        "wanli district": "萬里區",
+        "wulai district": "烏來區",
+        "taishan district": "泰山區",
+    }
+    for key, value in district_map.items():
+        if key in normalized:
+            return value
+    return ""
 
 
 def _quiet_level(score: float) -> str:

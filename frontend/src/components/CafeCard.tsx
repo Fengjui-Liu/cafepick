@@ -57,11 +57,15 @@ export function CafeCard({
             <Badge variant="success">{score} 分</Badge>
           </div>
           <div className="flex flex-wrap gap-1.5 mt-2">
-            {cafe.mrt && <Badge>{cafe.mrt}</Badge>}
+            {(cafe.mrt_station || cafe.mrt) && (
+              <Badge>{cafe.mrt_station || cafe.mrt}</Badge>
+            )}
+            {cafe.district && <Badge>{cafe.district}</Badge>}
             {cafe.limited_time === "no" && (
               <Badge variant="success">不限時</Badge>
             )}
             {cafe.standing_desk === "yes" && <Badge>站立桌</Badge>}
+            {cafe.reservable && <Badge variant="warning">可訂位</Badge>}
             {distance_km !== null && <Badge>{distance_km} km</Badge>}
           </div>
         </CardHeader>
@@ -75,8 +79,21 @@ export function CafeCard({
             <RatingBar label="安靜" value={cafe.quiet} />
             <RatingBar label="CP值" value={cafe.cheap} />
           </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--muted-foreground)] mt-3">
+            {cafe.price ? <span>價格上限 NT$ {cafe.price}</span> : null}
+            {cafe.quiet_level ? (
+              <span>
+                安靜度{" "}
+                {cafe.quiet_level === "quiet"
+                  ? "安靜"
+                  : cafe.quiet_level === "normal"
+                  ? "一般"
+                  : "偏吵"}
+              </span>
+            ) : null}
+          </div>
           {cafe.open_time && (
-            <p className="text-xs text-[var(--muted-foreground)] mt-3">
+            <p className="text-xs text-[var(--muted-foreground)] mt-2">
               {cafe.open_time}
             </p>
           )}
