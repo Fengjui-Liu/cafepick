@@ -41,16 +41,21 @@ def _walk_minutes_to_km(minutes: float) -> float:
     return minutes * 0.08
 
 
-def recommend_cafes(db: Session, filters: dict, top_n: int = 3) -> list:
+def recommend_cafes(db: Session, filters: dict, top_n: int = 5) -> list:
     """
-    Recommendation algorithm v1: score-based matching.
+    Recommendation algorithm: improved scoring with boolean/categorical filters.
 
-    Each cafe gets a score based on how well it matches the user's criteria.
-    Higher score = better match.
+    Scoring factors:
+    - WiFi match bonus (if requested and available)
+    - Socket match bonus (if requested and available)
+    - Quiet level match bonus
+    - Price cap bonus
+    - Seat availability bonus
+    - Distance bonus (if user location provided)
     """
     query = db.query(Cafe)
 
-    # Apply hard filters
+    # Hard filters
     if filters.get("city"):
         query = query.filter(Cafe.city == filters["city"])
     if filters.get("district"):
@@ -90,37 +95,49 @@ def recommend_cafes(db: Session, filters: dict, top_n: int = 3) -> list:
     scored = []
     for cafe in cafes:
         score = 0.0
-        weight_sum = 0.0
+        max_score = 0.0
 
-        # Score based on requested criteria (weighted matching)
-        quiet_pref = filters.get("quiet") or filters.get("quiet_level")
-        if isinstance(quiet_pref, (int, float)):
-            requested = quiet_pref
-            if requested > 0:
-                match_ratio = min(cafe.quiet / requested, 1.0)
-                score += match_ratio * requested
-                weight_sum += requested
-        elif isinstance(quiet_pref, str):
-            requested_score = {"quiet": 4.0, "normal": 2.5, "loud": 1.0}.get(
-                quiet_pref
+        if filters.get("has_wifi"):
+            max_score += 2.0
+            has_wifi = cafe.has_wifi if cafe.has_wifi is not None else (cafe.wifi or 0) >= 3
+            if has_wifi:
+                score += 2.0
+            elif cafe.wifi and cafe.wifi >= 1:
+                score += 0.5
+
+        if filters.get("has_socket"):
+            max_score += 2.0
+            has_socket = (
+                cafe.has_socket if cafe.has_socket is not None else (cafe.socket or 0) >= 3
             )
-            if requested_score:
-                match_ratio = min(cafe.quiet / requested_score, 1.0)
-                score += match_ratio * 1.5
-                weight_sum += 1.5
+            if has_socket:
+                score += 2.0
+            elif cafe.socket and cafe.socket >= 1:
+                score += 0.5
 
-        if filters.get("cheap") is not None and filters.get("max_price") is None:
-            requested = filters["cheap"]
-            if requested > 0:
-                match_ratio = min(cafe.cheap / requested, 1.0)
-                score += match_ratio * requested
-                weight_sum += requested
+        quiet_level = filters.get("quiet_level")
+        if quiet_level:
+            max_score += 2.0
+            q = cafe.quiet or 0
+            cafe_level = cafe.quiet_level or _quiet_level(q)
+            if cafe_level == quiet_level:
+                score += 2.0
+            elif quiet_level == "quiet" and q >= 2.5:
+                score += 1.0
+            elif quiet_level == "normal" and 2.0 <= q < 4.0:
+                score += 1.0
+            elif quiet_level == "loud" and q < 3.0:
+                score += 1.0
 
-        # Bonus for seat availability
+        if filters.get("max_price") is not None:
+            max_score += 2.0
+            if cafe.price and cafe.price <= filters["max_price"]:
+                score += 2.0
+
         if cafe.seat and cafe.seat > 3:
             score += 0.5
+            max_score += 0.5
 
-        # Distance bonus (if user location provided)
         distance = None
         if (
             filters.get("latitude")
@@ -138,7 +155,7 @@ def recommend_cafes(db: Session, filters: dict, top_n: int = 3) -> list:
                 max_distance_km = _walk_minutes_to_km(filters["max_walk_minutes"])
                 if distance > max_distance_km:
                     continue
-            # Closer = higher bonus (max 2 points within 500m)
+            max_score += 2.0
             if distance < 0.5:
                 score += 2.0
             elif distance < 1.0:
@@ -148,17 +165,21 @@ def recommend_cafes(db: Session, filters: dict, top_n: int = 3) -> list:
             elif distance < 5.0:
                 score += 0.5
 
-        # Normalize score
-        final_score = score / weight_sum if weight_sum > 0 else score
+        if max_score > 0:
+            final_score = round((score / max_score) * 100)
+        else:
+            overall = sum(
+                v or 0 for v in [cafe.wifi, cafe.socket, cafe.quiet, cafe.cheap, cafe.seat]
+            )
+            final_score = round((overall / 25) * 100)
 
         scored.append(
             {
                 "cafe": cafe,
-                "score": round(final_score, 2),
+                "score": final_score,
                 "distance_km": round(distance, 2) if distance else None,
             }
         )
 
-    # Sort by score descending
     scored.sort(key=lambda x: x["score"], reverse=True)
     return scored[:top_n]

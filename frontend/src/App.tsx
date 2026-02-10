@@ -20,9 +20,9 @@ const defaultFilters: Filters = {
 
 function App() {
   const [filters, setFilters] = useState<Filters>(defaultFilters);
-  const [recommendations, setRecommendations] = useState<
-    CafeRecommendation[]
-  >([]);
+  const [recommendations, setRecommendations] = useState<CafeRecommendation[]>(
+    []
+  );
   const [areas, setAreas] = useState<Area[]>([]);
   const [districts, setDistricts] = useState<string[]>([]);
   const [mrtStations, setMrtStations] = useState<string[]>([]);

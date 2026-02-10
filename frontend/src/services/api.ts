@@ -35,7 +35,7 @@ export async function getCafes(filters?: Partial<Filters>) {
 
 export async function getRecommendations(
   filters: Partial<Filters>,
-  topN = 3,
+  topN = 5,
   latitude?: number,
   longitude?: number
 ) {

@@ -11,33 +11,49 @@ router = APIRouter(tags=["cafes"])
 @router.get("/cafes")
 def get_cafes(
     city: Optional[str] = None,
-    area: Optional[str] = None,
-    wifi: Optional[float] = Query(None, ge=0, le=5),
-    socket: Optional[float] = Query(None, ge=0, le=5),
-    quiet: Optional[float] = Query(None, ge=0, le=5),
-    limited_time: Optional[str] = None,
-    cheap: Optional[float] = Query(None, ge=0, le=5),
+    district: Optional[str] = None,
     mrt: Optional[str] = None,
+    name: Optional[str] = None,
+    has_wifi: Optional[bool] = None,
+    has_socket: Optional[bool] = None,
+    quiet_level: Optional[str] = None,  # "quiet", "moderate", "lively"
+    price_range: Optional[str] = None,  # "budget", "moderate", "pricey"
+    limited_time: Optional[str] = None,
+    has_reservation: Optional[bool] = None,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ):
     query = db.query(Cafe)
 
+    if name:
+        query = query.filter(Cafe.name.contains(name))
     if city:
         query = query.filter(Cafe.city == city)
+    if district:
+        query = query.filter(Cafe.district == district)
     if mrt:
         query = query.filter(Cafe.mrt.contains(mrt))
-    if wifi is not None:
-        query = query.filter(Cafe.wifi >= wifi)
-    if socket is not None:
-        query = query.filter(Cafe.socket >= socket)
-    if quiet is not None:
-        query = query.filter(Cafe.quiet >= quiet)
-    if cheap is not None:
-        query = query.filter(Cafe.cheap >= cheap)
+    if has_wifi:
+        query = query.filter(Cafe.wifi >= 3)
+    if has_socket:
+        query = query.filter(Cafe.socket >= 3)
+    if quiet_level == "quiet":
+        query = query.filter(Cafe.quiet >= 3.5)
+    elif quiet_level == "moderate":
+        query = query.filter(Cafe.quiet >= 2, Cafe.quiet < 3.5)
+    elif quiet_level == "lively":
+        query = query.filter(Cafe.quiet < 2)
+    if price_range == "budget":
+        query = query.filter(Cafe.cheap >= 4)
+    elif price_range == "moderate":
+        query = query.filter(Cafe.cheap >= 2.5, Cafe.cheap < 4)
+    elif price_range == "pricey":
+        query = query.filter(Cafe.cheap < 2.5)
     if limited_time:
         query = query.filter(Cafe.limited_time == limited_time)
+    if has_reservation:
+        query = query.filter(Cafe.has_reservation == "yes")
 
     total = query.count()
     cafes = query.offset(offset).limit(limit).all()
@@ -48,25 +64,31 @@ def get_cafes(
 @router.get("/cafes/recommend")
 def get_recommendations(
     city: str = "taipei",
-    wifi: Optional[float] = Query(None, ge=0, le=5),
-    socket: Optional[float] = Query(None, ge=0, le=5),
-    quiet: Optional[float] = Query(None, ge=0, le=5),
-    limited_time: Optional[str] = None,
-    cheap: Optional[float] = Query(None, ge=0, le=5),
+    district: Optional[str] = None,
     mrt: Optional[str] = None,
+    name: Optional[str] = None,
+    has_wifi: Optional[bool] = None,
+    has_socket: Optional[bool] = None,
+    quiet_level: Optional[str] = None,
+    price_range: Optional[str] = None,
+    limited_time: Optional[str] = None,
+    has_reservation: Optional[bool] = None,
     latitude: Optional[float] = None,
     longitude: Optional[float] = None,
-    top_n: int = Query(3, ge=1, le=10),
+    top_n: int = Query(5, ge=1, le=10),
     db: Session = Depends(get_db),
 ):
     filters = {
         "city": city,
-        "wifi": wifi,
-        "socket": socket,
-        "quiet": quiet,
-        "limited_time": limited_time,
-        "cheap": cheap,
+        "district": district,
         "mrt": mrt,
+        "name": name,
+        "has_wifi": has_wifi,
+        "has_socket": has_socket,
+        "quiet_level": quiet_level,
+        "price_range": price_range,
+        "limited_time": limited_time,
+        "has_reservation": has_reservation,
         "latitude": latitude,
         "longitude": longitude,
     }

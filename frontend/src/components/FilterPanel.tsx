@@ -90,9 +90,7 @@ export function FilterPanel({
           篩選條件
         </h3>
         <div>
-          <div className="text-xs text-[var(--muted-foreground)] mb-2">
-            WiFi
-          </div>
+          <div className="text-xs text-[var(--muted-foreground)] mb-2">WiFi</div>
           <div className="flex gap-2">
             {[
               { value: false, label: "不限" },
@@ -111,9 +109,7 @@ export function FilterPanel({
         </div>
 
         <div>
-          <div className="text-xs text-[var(--muted-foreground)] mb-2">
-            插座
-          </div>
+          <div className="text-xs text-[var(--muted-foreground)] mb-2">插座</div>
           <div className="flex gap-2">
             {[
               { value: false, label: "不限" },
