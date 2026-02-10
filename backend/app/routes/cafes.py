@@ -1,9 +1,6 @@
-from fastapi import APIRouter, Depends, Query, HTTPException
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Query, HTTPException
 from typing import Optional
-from app.database import get_db
-from app.models.cafe import Cafe
-from app.services.recommend import recommend_cafes
+from app.services.google_places import search_places, find_nearest_mrt, search_transit_points
 
 router = APIRouter(tags=["cafes"])
 
@@ -12,51 +9,17 @@ router = APIRouter(tags=["cafes"])
 def get_cafes(
     city: Optional[str] = None,
     district: Optional[str] = None,
-    mrt: Optional[str] = None,
-    name: Optional[str] = None,
-    has_wifi: Optional[bool] = None,
-    has_socket: Optional[bool] = None,
-    quiet_level: Optional[str] = None,  # "quiet", "moderate", "lively"
-    price_range: Optional[str] = None,  # "budget", "moderate", "pricey"
-    limited_time: Optional[str] = None,
-    has_reservation: Optional[bool] = None,
+    query: Optional[str] = None,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
-    db: Session = Depends(get_db),
 ):
-    query = db.query(Cafe)
+    if not city:
+        return {"total": 0, "cafes": []}
 
-    if name:
-        query = query.filter(Cafe.name.contains(name))
-    if city:
-        query = query.filter(Cafe.city == city)
-    if district:
-        query = query.filter(Cafe.district == district)
-    if mrt:
-        query = query.filter(Cafe.mrt.contains(mrt))
-    if has_wifi:
-        query = query.filter(Cafe.wifi >= 3)
-    if has_socket:
-        query = query.filter(Cafe.socket >= 3)
-    if quiet_level == "quiet":
-        query = query.filter(Cafe.quiet >= 3.5)
-    elif quiet_level == "moderate":
-        query = query.filter(Cafe.quiet >= 2, Cafe.quiet < 3.5)
-    elif quiet_level == "lively":
-        query = query.filter(Cafe.quiet < 2)
-    if price_range == "budget":
-        query = query.filter(Cafe.cheap >= 4)
-    elif price_range == "moderate":
-        query = query.filter(Cafe.cheap >= 2.5, Cafe.cheap < 4)
-    elif price_range == "pricey":
-        query = query.filter(Cafe.cheap < 2.5)
-    if limited_time:
-        query = query.filter(Cafe.limited_time == limited_time)
-    if has_reservation:
-        query = query.filter(Cafe.has_reservation == "yes")
-
-    total = query.count()
-    cafes = query.offset(offset).limit(limit).all()
+    keyword = district or query
+    cafes = search_places(city, keyword, limit=limit + offset)
+    total = len(cafes)
+    cafes = cafes[offset : offset + limit]
 
     return {"total": total, "cafes": cafes}
 
@@ -65,40 +28,54 @@ def get_cafes(
 def get_recommendations(
     city: str = "taipei",
     district: Optional[str] = None,
-    mrt: Optional[str] = None,
-    name: Optional[str] = None,
-    has_wifi: Optional[bool] = None,
-    has_socket: Optional[bool] = None,
-    quiet_level: Optional[str] = None,
-    price_range: Optional[str] = None,
-    limited_time: Optional[str] = None,
-    has_reservation: Optional[bool] = None,
-    latitude: Optional[float] = None,
-    longitude: Optional[float] = None,
+    query: Optional[str] = None,
+    transit_lat: Optional[float] = None,
+    transit_lng: Optional[float] = None,
+    transit_name: Optional[str] = None,
+    max_walk_minutes: Optional[int] = Query(None, ge=1, le=60),
     top_n: int = Query(5, ge=1, le=10),
-    db: Session = Depends(get_db),
 ):
-    filters = {
-        "city": city,
-        "district": district,
-        "mrt": mrt,
-        "name": name,
-        "has_wifi": has_wifi,
-        "has_socket": has_socket,
-        "quiet_level": quiet_level,
-        "price_range": price_range,
-        "limited_time": limited_time,
-        "has_reservation": has_reservation,
-        "latitude": latitude,
-        "longitude": longitude,
-    }
-    results = recommend_cafes(db, filters, top_n)
-    return {"recommendations": results}
+    keyword = district or query
+    cafes = search_places(city, keyword, limit=top_n)
+    enriched = []
+    for cafe in cafes:
+        if cafe.get("latitude") and cafe.get("longitude"):
+            if transit_lat is not None and transit_lng is not None and transit_name:
+                from app.services.google_places import _haversine_km
+                dist = _haversine_km(
+                    cafe["latitude"], cafe["longitude"], transit_lat, transit_lng
+                )
+                walk_minutes = int(round((dist / 5) * 60))
+                if max_walk_minutes is not None and walk_minutes > max_walk_minutes:
+                    continue
+                cafe = dict(cafe)
+                cafe["transit_name"] = transit_name
+                cafe["transit_distance_km"] = round(dist, 2)
+                cafe["transit_walk_minutes"] = walk_minutes
+            else:
+                mrt = find_nearest_mrt(cafe["latitude"], cafe["longitude"])
+                if mrt:
+                    if max_walk_minutes is not None and mrt["walk_minutes"] > max_walk_minutes:
+                        continue
+                    cafe = dict(cafe)
+                    cafe["mrt_station"] = mrt["name"]
+                    cafe["mrt_distance_km"] = mrt["distance_km"]
+                    cafe["mrt_walk_minutes"] = mrt["walk_minutes"]
+        enriched.append({"cafe": cafe, "score": None, "distance_km": None})
+    return {"recommendations": enriched}
+
+
+@router.get("/transit")
+def get_transit_points(
+    city: str = "taipei",
+    district: Optional[str] = None,
+    query: Optional[str] = None,
+    limit: int = Query(20, ge=1, le=50),
+):
+    points = search_transit_points(city, district, query=query, limit=limit)
+    return {"transit_points": points}
 
 
 @router.get("/cafes/{cafe_id}")
-def get_cafe(cafe_id: str, db: Session = Depends(get_db)):
-    cafe = db.query(Cafe).filter(Cafe.id == cafe_id).first()
-    if not cafe:
-        raise HTTPException(status_code=404, detail="Cafe not found")
-    return cafe
+def get_cafe(cafe_id: str):
+    raise HTTPException(status_code=404, detail="Cafe not found")

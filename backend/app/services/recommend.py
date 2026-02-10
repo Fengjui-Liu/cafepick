@@ -1,8 +1,5 @@
 import math
 import re
-from sqlalchemy.orm import Session
-from sqlalchemy import or_
-from app.models.cafe import Cafe
 
 
 def _haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -41,100 +38,87 @@ def _walk_minutes_to_km(minutes: float) -> float:
     return minutes * 0.08
 
 
-def recommend_cafes(db: Session, filters: dict, top_n: int = 5) -> list:
-    """
-    Recommendation algorithm: improved scoring with boolean/categorical filters.
-
-    Scoring factors:
-    - WiFi match bonus (if requested and available)
-    - Socket match bonus (if requested and available)
-    - Quiet level match bonus
-    - Price cap bonus
-    - Seat availability bonus
-    - Distance bonus (if user location provided)
-    """
-    query = db.query(Cafe)
-
-    # Hard filters
-    if filters.get("city"):
-        query = query.filter(Cafe.city == filters["city"])
-    if filters.get("district"):
-        query = query.filter(Cafe.district == filters["district"])
-    if filters.get("mrt_station"):
-        query = query.filter(
-            or_(
-                Cafe.mrt_station.contains(filters["mrt_station"]),
-                Cafe.mrt.contains(filters["mrt_station"]),
-            )
-        )
-    if filters.get("mrt"):
-        normalized = _normalize_mrt_station(filters["mrt"])
-        if normalized:
-            query = query.filter(
-                or_(Cafe.mrt_station.contains(normalized), Cafe.mrt.contains(normalized))
-            )
-    if filters.get("limited_time") == "no":
-        query = query.filter(Cafe.limited_time == "no")
-    if filters.get("has_wifi") is True:
-        query = query.filter(Cafe.has_wifi.is_(True))
-    if filters.get("has_socket") is True:
-        query = query.filter(Cafe.has_socket.is_(True))
-    if filters.get("reservable") is True:
-        query = query.filter(Cafe.reservable.is_(True))
-    if filters.get("quiet_level"):
-        query = query.filter(Cafe.quiet_level == filters["quiet_level"])
-    if filters.get("max_price") is not None:
-        query = query.filter(Cafe.price.isnot(None), Cafe.price <= filters["max_price"])
-    if filters.get("bus_stop"):
-        query = query.filter(Cafe.bus_stop.contains(filters["bus_stop"]))
-
-    cafes = query.all()
+def recommend_cafes_from_list(cafes: list, filters: dict, top_n: int = 5) -> list:
+    """Recommend cafes from a list of dicts (Café Nomad live data)."""
     if not cafes:
         return []
 
-    scored = []
+    filtered = []
     for cafe in cafes:
+        if filters.get("district") and cafe.get("district") != filters["district"]:
+            continue
+        if filters.get("mrt_station"):
+            if filters["mrt_station"] not in (cafe.get("mrt_station") or ""):
+                continue
+        if filters.get("mrt"):
+            normalized = _normalize_mrt_station(filters["mrt"])
+            if normalized and normalized not in (cafe.get("mrt_station") or ""):
+                continue
+        if filters.get("bus_stop"):
+            needle = filters["bus_stop"]
+            haystack = " ".join(
+                [
+                    cafe.get("bus_stop") or "",
+                    cafe.get("address") or "",
+                    cafe.get("name") or "",
+                    cafe.get("mrt_station") or "",
+                ]
+            )
+            if needle not in haystack:
+                continue
+        if filters.get("has_wifi") is True and not cafe.get("has_wifi"):
+            continue
+        if filters.get("has_socket") is True and not cafe.get("has_socket"):
+            continue
+        if filters.get("reservable") is True and not cafe.get("reservable"):
+            continue
+        if filters.get("quiet_level") and cafe.get("quiet_level") != filters["quiet_level"]:
+            continue
+        if filters.get("max_price") is not None:
+            if cafe.get("price") is None or cafe.get("price") > filters["max_price"]:
+                continue
+        if filters.get("limited_time") and cafe.get("limited_time") != filters["limited_time"]:
+            continue
+        filtered.append(cafe)
+
+    scored = []
+    for cafe in filtered:
         score = 0.0
         max_score = 0.0
 
         if filters.get("has_wifi"):
             max_score += 2.0
-            has_wifi = cafe.has_wifi if cafe.has_wifi is not None else (cafe.wifi or 0) >= 3
-            if has_wifi:
+            if cafe.get("has_wifi"):
                 score += 2.0
-            elif cafe.wifi and cafe.wifi >= 1:
+            elif cafe.get("wifi", 0) >= 1:
                 score += 0.5
 
         if filters.get("has_socket"):
             max_score += 2.0
-            has_socket = (
-                cafe.has_socket if cafe.has_socket is not None else (cafe.socket or 0) >= 3
-            )
-            if has_socket:
+            if cafe.get("has_socket"):
                 score += 2.0
-            elif cafe.socket and cafe.socket >= 1:
+            elif cafe.get("socket", 0) >= 1:
                 score += 0.5
 
         quiet_level = filters.get("quiet_level")
         if quiet_level:
             max_score += 2.0
-            q = cafe.quiet or 0
-            cafe_level = cafe.quiet_level or _quiet_level(q)
+            cafe_level = cafe.get("quiet_level") or _quiet_level(cafe.get("quiet", 0))
             if cafe_level == quiet_level:
                 score += 2.0
-            elif quiet_level == "quiet" and q >= 2.5:
+            elif quiet_level == "quiet" and cafe.get("quiet", 0) >= 2.5:
                 score += 1.0
-            elif quiet_level == "normal" and 2.0 <= q < 4.0:
+            elif quiet_level == "normal" and 2.0 <= cafe.get("quiet", 0) < 4.0:
                 score += 1.0
-            elif quiet_level == "loud" and q < 3.0:
+            elif quiet_level == "loud" and cafe.get("quiet", 0) < 3.0:
                 score += 1.0
 
         if filters.get("max_price") is not None:
             max_score += 2.0
-            if cafe.price and cafe.price <= filters["max_price"]:
+            if cafe.get("price") and cafe.get("price") <= filters["max_price"]:
                 score += 2.0
 
-        if cafe.seat and cafe.seat > 3:
+        if cafe.get("seat", 0) > 3:
             score += 0.5
             max_score += 0.5
 
@@ -142,14 +126,14 @@ def recommend_cafes(db: Session, filters: dict, top_n: int = 5) -> list:
         if (
             filters.get("latitude")
             and filters.get("longitude")
-            and cafe.latitude
-            and cafe.longitude
+            and cafe.get("latitude")
+            and cafe.get("longitude")
         ):
             distance = _haversine(
                 filters["latitude"],
                 filters["longitude"],
-                cafe.latitude,
-                cafe.longitude,
+                cafe["latitude"],
+                cafe["longitude"],
             )
             if filters.get("max_walk_minutes") is not None:
                 max_distance_km = _walk_minutes_to_km(filters["max_walk_minutes"])
@@ -169,7 +153,8 @@ def recommend_cafes(db: Session, filters: dict, top_n: int = 5) -> list:
             final_score = round((score / max_score) * 100)
         else:
             overall = sum(
-                v or 0 for v in [cafe.wifi, cafe.socket, cafe.quiet, cafe.cheap, cafe.seat]
+                cafe.get(k, 0)
+                for k in ["wifi", "socket", "quiet", "cheap", "seat"]
             )
             final_score = round((overall / 25) * 100)
 

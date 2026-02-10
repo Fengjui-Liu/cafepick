@@ -33,10 +33,16 @@ export interface CafeRecommendation {
   distance_km: number | null;
 }
 
+export interface District {
+  name: string;
+  mrt_stations: string[];
+}
+
 export interface Area {
   city: string;
   cafe_count: number;
-  districts?: string[];
+  city_name: string;
+  districts: District[];
   mrt_stations: string[];
 }
 
@@ -48,7 +54,7 @@ export interface Filters {
   wifi: boolean;
   socket: boolean;
   quiet_level: "" | "quiet" | "normal" | "loud";
-  max_price: number;
+  max_price: number | null;
   limited_time: string;
   reservable: boolean;
 }
