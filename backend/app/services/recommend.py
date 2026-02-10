@@ -31,13 +31,15 @@ def recommend_cafes(db: Session, filters: dict, top_n: int = 5) -> list:
     """
     query = db.query(Cafe)
 
-    # Hard filters (location)
+    # Hard filters (location + name)
     if filters.get("city"):
         query = query.filter(Cafe.city == filters["city"])
     if filters.get("district"):
         query = query.filter(Cafe.district == filters["district"])
     if filters.get("mrt"):
         query = query.filter(Cafe.mrt.contains(filters["mrt"]))
+    if filters.get("name"):
+        query = query.filter(Cafe.name.contains(filters["name"]))
     if filters.get("limited_time") == "no":
         query = query.filter(Cafe.limited_time == "no")
     if filters.get("has_reservation"):

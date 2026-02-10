@@ -18,6 +18,7 @@ export async function getRecommendations(
   params.set("city", filters.city);
   if (filters.district) params.set("district", filters.district);
   if (filters.mrt) params.set("mrt", filters.mrt);
+  if (filters.name) params.set("name", filters.name);
   if (filters.has_wifi) params.set("has_wifi", "true");
   if (filters.has_socket) params.set("has_socket", "true");
   if (filters.quiet_level) params.set("quiet_level", filters.quiet_level);

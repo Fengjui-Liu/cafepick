@@ -43,10 +43,13 @@ export interface Area {
 export type QuietLevel = "" | "quiet" | "moderate" | "lively";
 export type PriceRange = "" | "budget" | "moderate" | "pricey";
 
+export type SortBy = "score" | "quiet" | "price" | "wifi";
+
 export interface Filters {
   city: string;
   district: string;
   mrt: string;
+  name: string;
   has_wifi: boolean;
   has_socket: boolean;
   quiet_level: QuietLevel;

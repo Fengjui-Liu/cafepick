@@ -13,6 +13,7 @@ def get_cafes(
     city: Optional[str] = None,
     district: Optional[str] = None,
     mrt: Optional[str] = None,
+    name: Optional[str] = None,
     has_wifi: Optional[bool] = None,
     has_socket: Optional[bool] = None,
     quiet_level: Optional[str] = None,  # "quiet", "moderate", "lively"
@@ -25,6 +26,8 @@ def get_cafes(
 ):
     query = db.query(Cafe)
 
+    if name:
+        query = query.filter(Cafe.name.contains(name))
     if city:
         query = query.filter(Cafe.city == city)
     if district:
@@ -63,6 +66,7 @@ def get_recommendations(
     city: str = "taipei",
     district: Optional[str] = None,
     mrt: Optional[str] = None,
+    name: Optional[str] = None,
     has_wifi: Optional[bool] = None,
     has_socket: Optional[bool] = None,
     quiet_level: Optional[str] = None,
@@ -78,6 +82,7 @@ def get_recommendations(
         "city": city,
         "district": district,
         "mrt": mrt,
+        "name": name,
         "has_wifi": has_wifi,
         "has_socket": has_socket,
         "quiet_level": quiet_level,

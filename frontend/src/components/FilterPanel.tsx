@@ -5,6 +5,7 @@ import type { Filters, Area, QuietLevel, PriceRange } from "@/types/cafe";
 
 interface FilterPanelProps {
   filters: Filters;
+  defaultFilters: Filters;
   onChange: (filters: Filters) => void;
   onSearch: () => void;
   areas: Area[];
@@ -27,6 +28,7 @@ const PRICE_OPTIONS: { value: PriceRange; label: string }[] = [
 
 export function FilterPanel({
   filters,
+  defaultFilters,
   onChange,
   onSearch,
   areas,
@@ -34,7 +36,6 @@ export function FilterPanel({
 }: FilterPanelProps) {
   const update = <K extends keyof Filters>(key: K, value: Filters[K]) => {
     const next = { ...filters, [key]: value };
-    // Reset child selections when parent changes
     if (key === "city") {
       next.district = "";
       next.mrt = "";
@@ -45,19 +46,18 @@ export function FilterPanel({
     onChange(next);
   };
 
-  // Get current area data
+  const isDefault = JSON.stringify(filters) === JSON.stringify(defaultFilters);
+
   const currentArea = useMemo(
     () => areas.find((a) => a.city === filters.city),
     [areas, filters.city]
   );
 
-  // Get districts for selected city
   const districts = useMemo(
     () => currentArea?.districts ?? [],
     [currentArea]
   );
 
-  // Get MRT stations for selected district, or all if no district selected
   const mrtStations = useMemo(() => {
     if (filters.district) {
       const d = districts.find((d) => d.name === filters.district);
@@ -68,6 +68,20 @@ export function FilterPanel({
 
   return (
     <div className="space-y-5">
+      {/* Name search */}
+      <div>
+        <h3 className="text-sm font-semibold mb-2 text-[var(--muted-foreground)]">
+          搜尋店名
+        </h3>
+        <input
+          type="text"
+          value={filters.name}
+          onChange={(e) => update("name", e.target.value)}
+          placeholder="輸入咖啡廳名稱..."
+          className="w-full h-10 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+        />
+      </div>
+
       {/* Location: City → District → MRT */}
       <div>
         <h3 className="text-sm font-semibold mb-2 text-[var(--muted-foreground)]">
@@ -205,15 +219,27 @@ export function FilterPanel({
         </div>
       </div>
 
-      <Button
-        variant="primary"
-        size="lg"
-        className="w-full"
-        onClick={onSearch}
-        disabled={loading}
-      >
-        {loading ? "搜尋中..." : "幫我推薦"}
-      </Button>
+      <div className="space-y-2">
+        <Button
+          variant="primary"
+          size="lg"
+          className="w-full"
+          onClick={onSearch}
+          disabled={loading}
+        >
+          {loading ? "搜尋中..." : "幫我推薦"}
+        </Button>
+        {!isDefault && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full"
+            onClick={() => onChange(defaultFilters)}
+          >
+            清除條件
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
