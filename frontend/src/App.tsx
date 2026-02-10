@@ -3,16 +3,18 @@ import { CafeMap } from "@/components/CafeMap";
 import { FilterPanel } from "@/components/FilterPanel";
 import { CafeCard } from "@/components/CafeCard";
 import { getRecommendations, getAreas } from "@/services/api";
-import type { Filters, CafeRecommendation, Cafe } from "@/types/cafe";
+import type { Filters, CafeRecommendation, Cafe, Area } from "@/types/cafe";
 
 const defaultFilters: Filters = {
   city: "taipei",
-  wifi: 0,
-  socket: 0,
-  quiet: 0,
-  cheap: 0,
-  limited_time: "",
+  district: "",
   mrt: "",
+  has_wifi: false,
+  has_socket: false,
+  quiet_level: "",
+  price_range: "",
+  limited_time: "",
+  has_reservation: false,
 };
 
 function App() {
@@ -20,19 +22,14 @@ function App() {
   const [recommendations, setRecommendations] = useState<
     CafeRecommendation[]
   >([]);
-  const [mrtStations, setMrtStations] = useState<string[]>([]);
+  const [areas, setAreas] = useState<Area[]>([]);
   const [loading, setLoading] = useState(false);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
 
   useEffect(() => {
     getAreas()
-      .then((areas) => {
-        const taipei = areas.find((a) => a.city === "taipei");
-        if (taipei) {
-          setMrtStations(taipei.mrt_stations);
-        }
-      })
+      .then((data) => setAreas(data))
       .catch(console.error);
   }, []);
 
@@ -80,7 +77,7 @@ function App() {
                 filters={filters}
                 onChange={setFilters}
                 onSearch={handleSearch}
-                mrtStations={mrtStations}
+                areas={areas}
                 loading={loading}
               />
             </div>

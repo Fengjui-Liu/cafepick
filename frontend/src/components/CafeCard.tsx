@@ -9,21 +9,16 @@ interface CafeCardProps {
   onHover: (id: string | null) => void;
 }
 
-function RatingBar({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="flex items-center gap-2 text-xs">
-      <span className="w-12 text-[var(--muted-foreground)]">{label}</span>
-      <div className="flex-1 h-1.5 rounded-full bg-[var(--muted)]">
-        <div
-          className="h-full rounded-full bg-[var(--primary)] transition-all"
-          style={{ width: `${(value / 5) * 100}%` }}
-        />
-      </div>
-      <span className="w-6 text-right text-[var(--muted-foreground)]">
-        {value}
-      </span>
-    </div>
-  );
+function getQuietLabel(score: number): string {
+  if (score >= 3.5) return "安靜";
+  if (score >= 2) return "普通";
+  return "熱鬧";
+}
+
+function getPriceLabel(cheapScore: number): string {
+  if (cheapScore >= 4) return "平價";
+  if (cheapScore >= 2.5) return "中等";
+  return "較貴";
 }
 
 export function CafeCard({
@@ -54,14 +49,14 @@ export function CafeCard({
               </span>
               <h3 className="font-semibold text-base">{cafe.name}</h3>
             </div>
-            <Badge variant="success">{score} 分</Badge>
+            <Badge variant="success">{score}%</Badge>
           </div>
           <div className="flex flex-wrap gap-1.5 mt-2">
             {cafe.mrt && <Badge>{cafe.mrt}</Badge>}
+            {cafe.district && <Badge>{cafe.district}</Badge>}
             {cafe.limited_time === "no" && (
               <Badge variant="success">不限時</Badge>
             )}
-            {cafe.standing_desk === "yes" && <Badge>站立桌</Badge>}
             {distance_km !== null && <Badge>{distance_km} km</Badge>}
           </div>
         </CardHeader>
@@ -69,14 +64,42 @@ export function CafeCard({
           <p className="text-xs text-[var(--muted-foreground)] mb-3">
             {cafe.address}
           </p>
-          <div className="space-y-1.5">
-            <RatingBar label="WiFi" value={cafe.wifi} />
-            <RatingBar label="插座" value={cafe.socket} />
-            <RatingBar label="安靜" value={cafe.quiet} />
-            <RatingBar label="CP值" value={cafe.cheap} />
+
+          {/* Feature tags */}
+          <div className="flex flex-wrap gap-2 mb-3">
+            <span
+              className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full ${
+                cafe.wifi >= 3
+                  ? "bg-green-100 text-green-800"
+                  : "bg-gray-100 text-gray-500"
+              }`}
+            >
+              WiFi {cafe.wifi >= 3 ? "有" : "無"}
+            </span>
+            <span
+              className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full ${
+                cafe.socket >= 3
+                  ? "bg-green-100 text-green-800"
+                  : "bg-gray-100 text-gray-500"
+              }`}
+            >
+              插座 {cafe.socket >= 3 ? "有" : "無"}
+            </span>
+            <span className="inline-flex items-center text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-800">
+              {getQuietLabel(cafe.quiet)}
+            </span>
+            <span className="inline-flex items-center text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-800">
+              {getPriceLabel(cafe.cheap)}
+            </span>
+            {cafe.has_reservation === "yes" && (
+              <span className="inline-flex items-center text-xs px-2 py-1 rounded-full bg-purple-100 text-purple-800">
+                可訂位
+              </span>
+            )}
           </div>
+
           {cafe.open_time && (
-            <p className="text-xs text-[var(--muted-foreground)] mt-3">
+            <p className="text-xs text-[var(--muted-foreground)]">
               {cafe.open_time}
             </p>
           )}

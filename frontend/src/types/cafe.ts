@@ -2,6 +2,7 @@ export interface Cafe {
   id: string;
   name: string;
   city: string;
+  district: string;
   address: string;
   latitude: number;
   longitude: number;
@@ -17,6 +18,7 @@ export interface Cafe {
   seat: number;
   limited_time: string;
   standing_desk: string;
+  has_reservation: string;
 }
 
 export interface CafeRecommendation {
@@ -25,18 +27,30 @@ export interface CafeRecommendation {
   distance_km: number | null;
 }
 
-export interface Area {
-  city: string;
-  cafe_count: number;
+export interface District {
+  name: string;
   mrt_stations: string[];
 }
 
+export interface Area {
+  city: string;
+  city_name: string;
+  cafe_count: number;
+  districts: District[];
+  mrt_stations: string[];
+}
+
+export type QuietLevel = "" | "quiet" | "moderate" | "lively";
+export type PriceRange = "" | "budget" | "moderate" | "pricey";
+
 export interface Filters {
   city: string;
-  wifi: number;
-  socket: number;
-  quiet: number;
-  cheap: number;
-  limited_time: string;
+  district: string;
   mrt: string;
+  has_wifi: boolean;
+  has_socket: boolean;
+  quiet_level: QuietLevel;
+  price_range: PriceRange;
+  limited_time: string;
+  has_reservation: boolean;
 }

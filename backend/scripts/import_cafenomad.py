@@ -14,6 +14,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import httpx
 from app.database import engine, Base, SessionLocal
 from app.models.cafe import Cafe
+from app.services.normalize import normalize_mrt, extract_district
 
 CAFENOMAD_API = "https://cafenomad.tw/api/v1.2/cafes"
 
@@ -80,14 +81,16 @@ def import_city(db, city: str) -> int:
 
 def _map_fields(item: dict, city: str) -> dict:
     """Map Cafe Nomad API fields to our Cafe model."""
+    address = item.get("address", "")
     return {
         "name": item.get("name", ""),
         "city": city,
-        "address": item.get("address", ""),
+        "district": extract_district(address),
+        "address": address,
         "latitude": _to_float(item.get("latitude")),
         "longitude": _to_float(item.get("longitude")),
         "url": item.get("url", ""),
-        "mrt": item.get("mrt", ""),
+        "mrt": normalize_mrt(item.get("mrt", "")),
         "open_time": item.get("open_time", ""),
         "wifi": _to_float(item.get("wifi")),
         "socket": _to_float(item.get("socket")),
@@ -98,6 +101,7 @@ def _map_fields(item: dict, city: str) -> dict:
         "seat": _to_float(item.get("seat")),
         "limited_time": item.get("limited_time", ""),
         "standing_desk": item.get("standing_desk", ""),
+        "has_reservation": "",
     }
 
 
