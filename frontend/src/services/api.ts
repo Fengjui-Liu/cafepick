@@ -12,6 +12,7 @@ async function fetchJSON<T>(url: string): Promise<T> {
 export async function getRecommendations(
   city: string,
   district?: string,
+  keyword?: string,
   topN = 5,
   transit?: { name: string; latitude: number; longitude: number },
   maxWalkMinutes?: number
@@ -19,6 +20,7 @@ export async function getRecommendations(
   const params = new URLSearchParams();
   params.set("city", city);
   if (district) params.set("district", district);
+  if (keyword) params.set("query", keyword);
   if (transit) {
     params.set("transit_name", transit.name);
     params.set("transit_lat", String(transit.latitude));

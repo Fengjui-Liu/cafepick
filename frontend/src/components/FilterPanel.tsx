@@ -14,6 +14,8 @@ interface FilterPanelProps {
   transitQuery: string;
   onTransitQueryChange: (value: string) => void;
   onTransitSearch: () => void;
+  transitLoading?: boolean;
+  transitMessage?: string;
   loading?: boolean;
 }
 
@@ -29,6 +31,8 @@ export function FilterPanel({
   transitQuery,
   onTransitQueryChange,
   onTransitSearch,
+  transitLoading,
+  transitMessage,
   loading,
 }: FilterPanelProps) {
   const update = (
@@ -88,6 +92,22 @@ export function FilterPanel({
         </select>
       </div>
 
+      <div>
+        <h3 className="text-sm font-semibold mb-2 text-[var(--muted-foreground)]">
+          店名關鍵字（可選）
+        </h3>
+        <input
+          type="text"
+          value={filters.keyword}
+          onChange={(e) => update("keyword", e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") onSearch();
+          }}
+          className="w-full h-10 rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+          placeholder="例如：% Arabica、路易莎、小廢墟咖啡"
+        />
+      </div>
+
       {transitPoints.length > 0 ? (
         <div>
           <h3 className="text-sm font-semibold mb-2 text-[var(--muted-foreground)]">
@@ -124,10 +144,14 @@ export function FilterPanel({
             variant="outline"
             size="sm"
             onClick={onTransitSearch}
+            disabled={transitLoading}
           >
-            查詢
+            {transitLoading ? "查詢中..." : "查詢"}
           </Button>
         </div>
+        {transitMessage ? (
+          <p className="mt-2 text-xs text-[var(--muted-foreground)]">{transitMessage}</p>
+        ) : null}
       </div>
 
       <div className="space-y-4">

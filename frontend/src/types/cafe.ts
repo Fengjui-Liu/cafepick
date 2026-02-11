@@ -49,6 +49,7 @@ export interface Area {
 export interface Filters {
   city: string;
   district: string;
+  keyword: string;
   mrt_station: string;
   bus_stop: string;
   wifi: boolean;

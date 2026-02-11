@@ -289,6 +289,85 @@ def search_places(city: str, district: Optional[str] = None, limit: int = 20) ->
     return results
 
 
+def search_places_near(
+    city: str,
+    latitude: float,
+    longitude: float,
+    district: Optional[str] = None,
+    limit: int = 20,
+) -> List[Dict]:
+    if city not in CITY_COORDS:
+        return []
+
+    payload = {
+        "textQuery": _text_query(city, district),
+        "locationBias": {
+            "circle": {
+                "center": {"latitude": latitude, "longitude": longitude},
+                "radius": 2500.0,
+            }
+        },
+        "includedType": "cafe",
+        "maxResultCount": min(max(limit, 1), 20),
+        "languageCode": "zh-TW",
+        "regionCode": "TW",
+    }
+
+    data = _post_places(
+        PLACES_TEXT_ENDPOINT,
+        payload,
+        "places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.priceLevel,places.websiteUri",
+    )
+
+    places = data.get("places", [])
+    results = []
+    for p in places:
+        loc = p.get("location") or {}
+        address = p.get("formattedAddress", "")
+        inferred_district = _extract_district(address)
+        results.append(
+            {
+                "id": p.get("id", ""),
+                "name": (p.get("displayName") or {}).get("text", ""),
+                "address": address,
+                "latitude": loc.get("latitude"),
+                "longitude": loc.get("longitude"),
+                "rating": p.get("rating"),
+                "user_ratings_total": p.get("userRatingCount"),
+                "price_level": p.get("priceLevel"),
+                "url": p.get("websiteUri"),
+                "city": city,
+                "district": district or inferred_district or "",
+            }
+        )
+    return results
+
+
+def has_cafes_near_transit(
+    city: str,
+    transit_lat: float,
+    transit_lng: float,
+    district: Optional[str] = None,
+    max_walk_minutes: int = 10,
+) -> bool:
+    cafes = search_places_near(
+        city=city,
+        latitude=transit_lat,
+        longitude=transit_lng,
+        district=district,
+        limit=5,
+    )
+    max_km = (max_walk_minutes / 60.0) * 5.0
+    for cafe in cafes:
+        lat = cafe.get("latitude")
+        lng = cafe.get("longitude")
+        if lat is None or lng is None:
+            continue
+        if _haversine_km(lat, lng, transit_lat, transit_lng) <= max_km:
+            return True
+    return False
+
+
 def search_transit_points(
     city: str,
     district: Optional[str] = None,
@@ -334,7 +413,14 @@ def search_transit_points(
             payload,
             "places.id,places.displayName,places.location",
         )
-        return to_points(data)
+        points = to_points(data)
+        deduped: Dict[str, Dict] = {}
+        for point in points:
+            name = (point.get("name") or "").strip()
+            if not name:
+                continue
+            deduped.setdefault(name, point)
+        return list(deduped.values())
 
     if district:
         text_query = f"{district} 交通站"
@@ -352,7 +438,13 @@ def search_transit_points(
         for p in to_points(data):
             results[p["id"]] = p
 
-    return list(results.values())
+    by_name: Dict[str, Dict] = {}
+    for point in results.values():
+        name = (point.get("name") or "").strip()
+        if not name:
+            continue
+        by_name.setdefault(name, point)
+    return list(by_name.values())
 
 
 def _nearby_transit(lat: float, lng: float) -> Optional[Dict[str, object]]:

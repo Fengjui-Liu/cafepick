@@ -9,6 +9,7 @@ import type { PlaceRecommendation, Place } from "@/types/place";
 const defaultFilters: Filters = {
   city: "taipei",
   district: "",
+  keyword: "",
   mrt_station: "",
   bus_stop: "",
   wifi: false,
@@ -29,6 +30,8 @@ function App() {
   const [transitPoints, setTransitPoints] = useState<Place[]>([]);
   const [selectedTransitId, setSelectedTransitId] = useState<string>("");
   const [transitQuery, setTransitQuery] = useState<string>("");
+  const [transitLoading, setTransitLoading] = useState(false);
+  const [transitMessage, setTransitMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
@@ -66,19 +69,22 @@ function App() {
   useEffect(() => {
     if (!filters.city) return;
     const district = filters.district || undefined;
+    setTransitMessage("");
     getTransitPoints(filters.city, district)
       .then((points) => setTransitPoints(points))
       .catch(console.error);
   }, [filters.city, filters.district]);
 
-  const handleSearch = async () => {
+  const handleSearch = async (overrideTransit?: Place) => {
     setLoading(true);
     setHasSearched(true);
     try {
-      const transit = transitPoints.find((p) => p.id === selectedTransitId);
+      const transit =
+        overrideTransit ?? transitPoints.find((p) => p.id === selectedTransitId);
       const results = await getRecommendations(
         filters.city,
         filters.district,
+        filters.keyword,
         8,
         transit
           ? { name: transit.name, latitude: transit.latitude, longitude: transit.longitude }
@@ -94,13 +100,27 @@ function App() {
   };
 
   const handleTransitSearch = async () => {
-    if (!transitQuery.trim()) return;
-    setSelectedTransitId("");
+    const q = transitQuery.trim();
+    if (!q) return;
+    setTransitLoading(true);
+    setTransitMessage("");
     try {
-      const points = await getTransitPoints(filters.city, filters.district, transitQuery.trim());
+      const points = await getTransitPoints(filters.city, filters.district, q);
       setTransitPoints(points);
+      if (points.length === 0) {
+        setSelectedTransitId("");
+        setTransitMessage("找不到可用交通點，請換關鍵字。");
+        return;
+      }
+      const first = points[0];
+      setSelectedTransitId(first.id);
+      setTransitMessage(`找到 ${points.length} 個地點，已自動選擇「${first.name}」。`);
+      await handleSearch(first);
     } catch (err) {
       console.error("Failed to fetch transit points:", err);
+      setTransitMessage("查詢失敗，請稍後再試。");
+    } finally {
+      setTransitLoading(false);
     }
   };
 
@@ -157,6 +177,8 @@ function App() {
                 transitQuery={transitQuery}
                 onTransitQueryChange={setTransitQuery}
                 onTransitSearch={handleTransitSearch}
+                transitLoading={transitLoading}
+                transitMessage={transitMessage}
                 loading={loading}
               />
             </div>
