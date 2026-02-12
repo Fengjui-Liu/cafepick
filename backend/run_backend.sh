@@ -21,5 +21,5 @@ if [ -z "${GOOGLE_MAPS_API_KEY:-}" ]; then
   echo "GOOGLE_MAPS_API_KEY=your_api_key"
   exit 1
 fi
-
+GOOGLE_MAPS_API_KEY=AIzaSyAj7IAlnzOAyjc33C4c-cOSvQYAh0Vc4Ww
 python3 -m uvicorn app.main:app --reload --port 8000
