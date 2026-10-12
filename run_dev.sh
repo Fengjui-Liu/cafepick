@@ -32,9 +32,17 @@ set -a
 # shellcheck disable=SC1091
 source ".env"
 set +a
-if [[ -f ".venv/bin/activate" ]]; then
-  # shellcheck disable=SC1091
-  source ".venv/bin/activate"
+if [[ ! -f ".venv/bin/activate" ]]; then
+  echo "Creating backend/.venv ..."
+  python3 -m venv .venv
+fi
+# shellcheck disable=SC1091
+source ".venv/bin/activate"
+# Reinstall only when requirements.txt changed since the last install.
+if [[ ! -f ".venv/.installed" || "requirements.txt" -nt ".venv/.installed" ]]; then
+  echo "Installing backend dependencies ..."
+  pip install -q -r requirements.txt
+  touch ".venv/.installed"
 fi
 python3 -m uvicorn app.main:app --reload --port 8000 >"$BACKEND_LOG" 2>&1 &
 BACKEND_PID=$!
