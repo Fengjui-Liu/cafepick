@@ -26,7 +26,7 @@ NOMAD_CITY = "taipei"
 SOURCE_KEY = f"cafenomad:{NOMAD_CITY}"
 MAX_AGE = timedelta(hours=24)
 
-# ~1.1 km grid cells; neighbouring cells cover any radius under that.
+# ~1.1 km × 1.0 km grid cells at Taipei's latitude.
 _CELL = 0.01
 _index: Optional[Dict[Tuple[int, int], List[dict]]] = None
 
@@ -117,9 +117,10 @@ def nearby(lat: float, lng: float, radius_km: float) -> List[Tuple[float, dict]]
     """Nomad cafes within radius_km, as (distance_km, cafe), closest first."""
     index = _load_index()
     ci, cj = _cell(lat, lng)
+    span = math.ceil(radius_km)  # a cell is ≥1 km on each side at Taipei's latitude
     found = []
-    for di in (-1, 0, 1):
-        for dj in (-1, 0, 1):
+    for di in range(-span, span + 1):
+        for dj in range(-span, span + 1):
             for cafe in index.get((ci + di, cj + dj), []):
                 km = haversine_km(lat, lng, cafe["latitude"], cafe["longitude"])
                 if km <= radius_km:

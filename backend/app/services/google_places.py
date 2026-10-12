@@ -431,3 +431,33 @@ def search_transit_points(
             continue
         by_name.setdefault(name, point)
     return list(by_name.values())
+
+
+def search_nearby_cafes(
+    latitude: float,
+    longitude: float,
+    radius_m: float,
+    rank_by: str = "DISTANCE",
+    limit: int = 20,
+) -> List[Dict]:
+    """Cafes within radius_m of a point (Places Nearby Search, max 20)."""
+    payload = {
+        "locationRestriction": {
+            "circle": {
+                "center": {"latitude": latitude, "longitude": longitude},
+                "radius": radius_m,
+            }
+        },
+        "includedTypes": ["cafe"],
+        "maxResultCount": min(max(limit, 1), 20),
+        "rankPreference": rank_by,
+        "languageCode": "zh-TW",
+        "regionCode": "TW",
+    }
+    data = _post_places(PLACES_NEARBY_ENDPOINT, payload, CAFE_FIELD_MASK)
+    results = []
+    for p in data.get("places", []):
+        address = p.get("formattedAddress", "")
+        city = "newtaipei" if "新北" in address else "taipei"
+        results.append(_parse_place(p, city, None))
+    return results

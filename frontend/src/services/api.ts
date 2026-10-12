@@ -1,5 +1,5 @@
 import type { Area } from "@/types/cafe";
-import type { PlaceRecommendation, Place } from "@/types/place";
+import type { PlaceRecommendation, Place, Mode, RecommendResponse } from "@/types/place";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -60,4 +60,42 @@ export async function getTransitPoints(
     `${API_BASE}/api/transit?${params}`
   );
   return data.transit_points;
+}
+
+export interface RecommendParams {
+  mode: Mode;
+  origin:
+    | { lat: number; lng: number }
+    | { station: string }
+    | { district: string; city?: string };
+  pet?: boolean;
+  maxWalkMinutes?: number;
+  /** ids already shown, for 「換 3 間」 */
+  exclude?: string[];
+  topN?: number;
+}
+
+export async function recommend(p: RecommendParams) {
+  const params = new URLSearchParams({ mode: p.mode });
+  if ("lat" in p.origin) {
+    params.set("lat", String(p.origin.lat));
+    params.set("lng", String(p.origin.lng));
+  } else if ("station" in p.origin) {
+    params.set("station", p.origin.station);
+  } else {
+    params.set("district", p.origin.district);
+    if (p.origin.city) params.set("city", p.origin.city);
+  }
+  if (p.pet) params.set("pet", "true");
+  if (p.maxWalkMinutes) params.set("max_walk_minutes", String(p.maxWalkMinutes));
+  if (p.exclude?.length) params.set("exclude", p.exclude.join(","));
+  if (p.topN) params.set("top_n", String(p.topN));
+  return fetchJSON<RecommendResponse>(`${API_BASE}/api/recommend?${params}`);
+}
+
+export async function searchStations(q: string) {
+  const data = await fetchJSON<{ stations: { name: string; lines: string[] }[] }>(
+    `${API_BASE}/api/stations?q=${encodeURIComponent(q)}`
+  );
+  return data.stations;
 }

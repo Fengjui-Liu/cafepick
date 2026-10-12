@@ -27,7 +27,7 @@ def work_info(nomad: dict) -> Dict:
     return info
 
 
-def enrich(cafe: Dict) -> Dict:
+def enrich(cafe: Dict, match_nomad: bool = True) -> Dict:
     cafe = dict(cafe)
     lat, lng = cafe.get("latitude"), cafe.get("longitude")
     cafe["work"] = None
@@ -43,7 +43,7 @@ def enrich(cafe: Dict) -> Dict:
         cafe["mrt_distance_km"] = station["distance_km"]
         cafe["mrt_walk_minutes"] = station["walk_minutes"]
 
-    found = matcher.match_nomad(cafe.get("name", ""), lat, lng)
+    found = matcher.match_nomad(cafe.get("name", ""), lat, lng) if match_nomad else None
     if found:
         nomad, sim = found
         cafe["work"] = work_info(nomad)

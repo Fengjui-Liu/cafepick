@@ -57,3 +57,25 @@ export interface PlaceRecommendation {
   score: number | null;
   distance_km: number | null;
 }
+
+export type Mode = "work" | "date" | "quick";
+export type PetStatus = "yes" | "no" | "unknown";
+
+export interface Recommendation {
+  cafe: Place & { source?: "nomad"; walk_minutes?: number; distance_km?: number };
+  /** 0–100 */
+  score: number;
+  /** e.g. ["走路 4 分", "插座多", "不限時"] */
+  reasons: string[];
+  pet_status: PetStatus;
+  walk_minutes: number | null;
+  distance_km: number | null;
+}
+
+export interface RecommendResponse {
+  mode: Mode;
+  origin: { latitude?: number; longitude?: number; label: string };
+  recommendations: Recommendation[];
+  pool_size: number;
+  has_more: boolean;
+}

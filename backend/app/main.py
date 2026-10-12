@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine, Base, SessionLocal
 from app.models import cafe as _cafe_model, sync_state as _sync_state_model  # noqa: F401  register tables
-from app.routes import cafes, areas
+from app.routes import cafes, areas, recommend as recommend_route
 from app.services import mrt, nomad_store
 
 log = logging.getLogger("cafepick")
@@ -26,6 +26,7 @@ app.add_middleware(
 
 app.include_router(cafes.router, prefix="/api")
 app.include_router(areas.router, prefix="/api")
+app.include_router(recommend_route.router, prefix="/api")
 
 
 def _refresh_local_data() -> None:
