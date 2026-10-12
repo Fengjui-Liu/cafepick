@@ -28,6 +28,10 @@ if [[ ! -f "$FRONTEND_DIR/.env" ]]; then
 fi
 
 cd "$BACKEND_DIR"
+set -a
+# shellcheck disable=SC1091
+source ".env"
+set +a
 if [[ -f ".venv/bin/activate" ]]; then
   # shellcheck disable=SC1091
   source ".venv/bin/activate"

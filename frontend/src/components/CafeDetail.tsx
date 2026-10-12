@@ -109,7 +109,7 @@ export function CafeDetail({ cafe, onClose, isFavorite, onToggleFavorite }: Cafe
             {cafe.limited_time === "no" && (
               <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800">不限時</span>
             )}
-            {cafe.has_reservation === "yes" && (
+            {cafe.reservable && (
               <span className="text-xs px-2.5 py-1 rounded-full bg-purple-100 text-purple-800">可訂位</span>
             )}
             {cafe.standing_desk === "yes" && (

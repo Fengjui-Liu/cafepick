@@ -2,3 +2,8 @@ backend/data/*.db
 __pycache__/
 backend/.env
 backend/.venv/
+.DS_Store
+.venv/
+**/.venv/
+frontend/.env
+backend/.uvicorn.log
