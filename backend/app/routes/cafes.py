@@ -1,25 +1,15 @@
 from fastapi import APIRouter, Query, HTTPException
 from typing import Optional
+from app.services.enrich import enrich
+from app.services.geo import haversine_km, walk_minutes
 from app.services.google_places import (
     search_places,
     search_places_near,
-    find_nearest_mrt,
     search_transit_points,
     has_cafes_near_transit,
 )
 
 router = APIRouter(tags=["cafes"])
-
-
-def _walk_distance_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
-    # Keep this route independent from private service helpers.
-    from math import radians, sin, cos, atan2, sqrt
-
-    earth_km = 6371.0
-    dlat = radians(lat2 - lat1)
-    dlng = radians(lng2 - lng1)
-    a = sin(dlat / 2) ** 2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlng / 2) ** 2
-    return earth_km * 2 * atan2(sqrt(a), sqrt(1 - a))
 
 
 @router.get("/cafes")
@@ -36,7 +26,7 @@ def get_cafes(
     keyword = query or district
     cafes = search_places(city, keyword, limit=limit + offset)
     total = len(cafes)
-    cafes = cafes[offset : offset + limit]
+    cafes = [enrich(c) for c in cafes[offset : offset + limit]]
 
     return {"total": total, "cafes": cafes}
 
@@ -71,27 +61,22 @@ def get_recommendations(
         )
     enriched = []
     for cafe in cafes:
+        cafe = enrich(cafe)
         if cafe.get("latitude") and cafe.get("longitude"):
             if transit_lat is not None and transit_lng is not None and transit_name:
-                dist = _walk_distance_km(
+                dist = haversine_km(
                     cafe["latitude"], cafe["longitude"], transit_lat, transit_lng
                 )
-                walk_minutes = int(round((dist / 5) * 60))
-                if max_walk_minutes is not None and walk_minutes > max_walk_minutes:
+                minutes = walk_minutes(dist)
+                if max_walk_minutes is not None and minutes > max_walk_minutes:
                     continue
-                cafe = dict(cafe)
                 cafe["transit_name"] = transit_name
                 cafe["transit_distance_km"] = round(dist, 2)
-                cafe["transit_walk_minutes"] = walk_minutes
-            else:
-                mrt = find_nearest_mrt(cafe["latitude"], cafe["longitude"])
-                if mrt:
-                    if max_walk_minutes is not None and mrt["walk_minutes"] > max_walk_minutes:
-                        continue
-                    cafe = dict(cafe)
-                    cafe["mrt_station"] = mrt["name"]
-                    cafe["mrt_distance_km"] = mrt["distance_km"]
-                    cafe["mrt_walk_minutes"] = mrt["walk_minutes"]
+                cafe["transit_walk_minutes"] = minutes
+            elif max_walk_minutes is not None:
+                station = cafe.get("nearest_mrt")
+                if station and station["walk_minutes"] > max_walk_minutes:
+                    continue
         enriched.append({"cafe": cafe, "score": None, "distance_km": None})
         if len(enriched) >= top_n:
             break

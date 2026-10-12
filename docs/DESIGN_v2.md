@@ -113,6 +113,19 @@
 | **3. 手機介面** | 情境首頁、地圖＋底部抽屜、導航、換一批 | 手機瀏覽器上單手可用 |
 | **4. 收尾** | 收藏、讀取骨架畫面、錯誤提示、PWA（可加到主畫面） | 可以加到手機桌面當 App 用 |
 
+## 8.1 第 1 階段實作筆記
+
+| 模組 | 做什麼 |
+|---|---|
+| `services/nomad_store.py` | Cafe Nomad「taipei」資料（含新北）每 24 小時同步進 SQLite，記憶體網格索引查附近店家 |
+| `services/matcher.py` | 店名 token 比對＋80 公尺內才算同一間；站名、行政區不算店名，避免「XX 信義」誤配 |
+| `services/mrt_builder.py` | 雙北 145 站清單（含環狀線、機捷、淡海／安坑輕軌），第一次啟動用 Google 定位一次寫成 `data/mrt_stations.json` |
+| `services/mrt.py` | 本地算最近捷運站，取代每間店一次 API |
+| `services/enrich.py` | 每間 Google 店加上 `nearest_mrt`、`work`（Cafe Nomad 評分，配不到為 `null`）|
+| `GET /api/status` | 看目前有幾間 Cafe Nomad 店、幾個捷運站、上次同步時間 |
+
+後端啟動時會在背景做同步和建站表，不會卡住 API。
+
 ## 9. 已確認的決定
 
 1. 三個情境 ＋「🐶 帶毛孩」開關。

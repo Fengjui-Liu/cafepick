@@ -1,8 +1,8 @@
 import os
 import re
-import math
 import httpx
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional
+from app.services.geo import haversine_km
 
 PLACES_TEXT_ENDPOINT = "https://places.googleapis.com/v1/places:searchText"
 PLACES_NEARBY_ENDPOINT = "https://places.googleapis.com/v1/places:searchNearby"
@@ -187,9 +187,6 @@ CITY_DISTRICTS = {
     ],
 }
 
-_MRT_CACHE: Dict[Tuple[float, float], Dict[str, object]] = {}
-
-
 def _api_key() -> str:
     key = os.getenv("GOOGLE_MAPS_API_KEY")
     if not key:
@@ -207,21 +204,11 @@ def _text_query(city: str, district: Optional[str] = None) -> str:
 def _extract_district(address: str) -> str:
     if not address:
         return ""
-    match = re.search(r"([\u4e00-\u9fff]{1,3}區)", address)
-    return match.group(1) if match else ""
-
-
-def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    R = 6371
-    dlat = math.radians(lat2 - lat1)
-    dlon = math.radians(lon2 - lon1)
-    a = (
-        math.sin(dlat / 2) ** 2
-        + math.cos(math.radians(lat1))
-        * math.cos(math.radians(lat2))
-        * math.sin(dlon / 2) ** 2
+    # Anchor on 市/縣 so "台北市大安區" yields 大安區, not 市大安區.
+    match = re.search(r"[市縣]([\u4e00-\u9fff]{1,3}?區)", address) or re.search(
+        r"([\u4e00-\u9fff]{1,3}區)", address
     )
-    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return match.group(1) if match else ""
 
 
 def get_city_districts(city: str) -> List[str]:
@@ -238,6 +225,47 @@ def _post_places(url: str, payload: dict, field_mask: str) -> dict:
     if resp.status_code >= 400:
         raise RuntimeError(f"Places API error {resp.status_code}: {resp.text}")
     return resp.json()
+
+
+# Atmosphere fields (allowsDogs, reservable, …) bill at a higher Places SKU,
+# but they are what the 約會 scenario and 帶毛孩 toggle need.
+CAFE_FIELD_MASK = ",".join(
+    "places." + f
+    for f in [
+        "id", "displayName", "formattedAddress", "location", "rating",
+        "userRatingCount", "priceLevel", "websiteUri", "googleMapsUri",
+        "currentOpeningHours.openNow", "regularOpeningHours.weekdayDescriptions",
+        "allowsDogs", "reservable", "goodForGroups", "outdoorSeating",
+        "servesDessert",
+    ]
+)
+
+
+def _parse_place(p: dict, city: str, district: Optional[str]) -> Dict:
+    loc = p.get("location") or {}
+    address = p.get("formattedAddress", "")
+    return {
+        "id": p.get("id", ""),
+        "name": (p.get("displayName") or {}).get("text", ""),
+        "address": address,
+        "latitude": loc.get("latitude"),
+        "longitude": loc.get("longitude"),
+        "rating": p.get("rating"),
+        "user_ratings_total": p.get("userRatingCount"),
+        "price_level": p.get("priceLevel"),
+        "url": p.get("websiteUri"),
+        "google_maps_url": p.get("googleMapsUri"),
+        "city": city,
+        "district": district or _extract_district(address) or "",
+        "open_now": (p.get("currentOpeningHours") or {}).get("openNow"),
+        "opening_hours": (p.get("regularOpeningHours") or {}).get("weekdayDescriptions"),
+        # None = the shop hasn't told Google; keep it distinct from False.
+        "pet_friendly": p.get("allowsDogs"),
+        "reservable": p.get("reservable"),
+        "good_for_groups": p.get("goodForGroups"),
+        "outdoor_seating": p.get("outdoorSeating"),
+        "serves_dessert": p.get("servesDessert"),
+    }
 
 
 def search_places(city: str, district: Optional[str] = None, limit: int = 20) -> List[Dict]:
@@ -262,31 +290,10 @@ def search_places(city: str, district: Optional[str] = None, limit: int = 20) ->
     data = _post_places(
         PLACES_TEXT_ENDPOINT,
         payload,
-        "places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.priceLevel,places.websiteUri",
+        CAFE_FIELD_MASK,
     )
 
-    places = data.get("places", [])
-    results = []
-    for p in places:
-        loc = p.get("location") or {}
-        address = p.get("formattedAddress", "")
-        inferred_district = _extract_district(address)
-        results.append(
-            {
-                "id": p.get("id", ""),
-                "name": (p.get("displayName") or {}).get("text", ""),
-                "address": address,
-                "latitude": loc.get("latitude"),
-                "longitude": loc.get("longitude"),
-                "rating": p.get("rating"),
-                "user_ratings_total": p.get("userRatingCount"),
-                "price_level": p.get("priceLevel"),
-                "url": p.get("websiteUri"),
-                "city": city,
-                "district": district or inferred_district or "",
-            }
-        )
-    return results
+    return [_parse_place(p, city, district) for p in data.get("places", [])]
 
 
 def search_places_near(
@@ -316,31 +323,10 @@ def search_places_near(
     data = _post_places(
         PLACES_TEXT_ENDPOINT,
         payload,
-        "places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.priceLevel,places.websiteUri",
+        CAFE_FIELD_MASK,
     )
 
-    places = data.get("places", [])
-    results = []
-    for p in places:
-        loc = p.get("location") or {}
-        address = p.get("formattedAddress", "")
-        inferred_district = _extract_district(address)
-        results.append(
-            {
-                "id": p.get("id", ""),
-                "name": (p.get("displayName") or {}).get("text", ""),
-                "address": address,
-                "latitude": loc.get("latitude"),
-                "longitude": loc.get("longitude"),
-                "rating": p.get("rating"),
-                "user_ratings_total": p.get("userRatingCount"),
-                "price_level": p.get("priceLevel"),
-                "url": p.get("websiteUri"),
-                "city": city,
-                "district": district or inferred_district or "",
-            }
-        )
-    return results
+    return [_parse_place(p, city, district) for p in data.get("places", [])]
 
 
 def has_cafes_near_transit(
@@ -363,7 +349,7 @@ def has_cafes_near_transit(
         lng = cafe.get("longitude")
         if lat is None or lng is None:
             continue
-        if _haversine_km(lat, lng, transit_lat, transit_lng) <= max_km:
+        if haversine_km(lat, lng, transit_lat, transit_lng) <= max_km:
             return True
     return False
 
@@ -445,97 +431,3 @@ def search_transit_points(
             continue
         by_name.setdefault(name, point)
     return list(by_name.values())
-
-
-def _nearby_transit(lat: float, lng: float) -> Optional[Dict[str, object]]:
-    payload = {
-        "locationRestriction": {
-            "circle": {
-                "center": {"latitude": lat, "longitude": lng},
-                "radius": 8000.0,
-            }
-        },
-        "includedTypes": [
-            "subway_station",
-            "light_rail_station",
-            "train_station",
-            "transit_station",
-        ],
-        "maxResultCount": 1,
-        "rankPreference": "DISTANCE",
-        "languageCode": "zh-TW",
-        "regionCode": "TW",
-    }
-
-    data = _post_places(
-        PLACES_NEARBY_ENDPOINT,
-        payload,
-        "places.displayName,places.location",
-    )
-    places = data.get("places", [])
-    if not places:
-        return None
-
-    place = places[0]
-    loc = place.get("location") or {}
-    name = (place.get("displayName") or {}).get("text", "")
-    if not (loc.get("latitude") and loc.get("longitude")):
-        return None
-
-    distance_km = _haversine_km(lat, lng, loc["latitude"], loc["longitude"])
-    return {
-        "name": name,
-        "distance_km": round(distance_km, 2),
-        "walk_minutes": int(round((distance_km / 5) * 60)),
-    }
-
-
-def _text_transit(lat: float, lng: float) -> Optional[Dict[str, object]]:
-    payload = {
-        "textQuery": "捷運站",
-        "locationBias": {
-            "circle": {
-                "center": {"latitude": lat, "longitude": lng},
-                "radius": 8000.0,
-            }
-        },
-        "maxResultCount": 1,
-        "languageCode": "zh-TW",
-        "regionCode": "TW",
-    }
-
-    data = _post_places(
-        PLACES_TEXT_ENDPOINT,
-        payload,
-        "places.displayName,places.location",
-    )
-    places = data.get("places", [])
-    if not places:
-        return None
-
-    place = places[0]
-    loc = place.get("location") or {}
-    name = (place.get("displayName") or {}).get("text", "")
-    if not (loc.get("latitude") and loc.get("longitude")):
-        return None
-
-    distance_km = _haversine_km(lat, lng, loc["latitude"], loc["longitude"])
-    return {
-        "name": name,
-        "distance_km": round(distance_km, 2),
-        "walk_minutes": int(round((distance_km / 5) * 60)),
-    }
-
-
-def find_nearest_mrt(lat: float, lng: float) -> Optional[Dict[str, object]]:
-    key = (round(lat, 4), round(lng, 4))
-    cached = _MRT_CACHE.get(key)
-    if cached:
-        return cached
-
-    result = _nearby_transit(lat, lng)
-    if not result:
-        result = _text_transit(lat, lng)
-    if result:
-        _MRT_CACHE[key] = result
-    return result
