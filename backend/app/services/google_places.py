@@ -2,7 +2,6 @@ import os
 import re
 import httpx
 from typing import List, Dict, Optional
-from app.services.geo import haversine_km
 
 PLACES_TEXT_ENDPOINT = "https://places.googleapis.com/v1/places:searchText"
 PLACES_NEARBY_ENDPOINT = "https://places.googleapis.com/v1/places:searchNearby"
@@ -211,10 +210,6 @@ def _extract_district(address: str) -> str:
     return match.group(1) if match else ""
 
 
-def get_city_districts(city: str) -> List[str]:
-    return CITY_DISTRICTS.get(city, [])
-
-
 def _post_places(url: str, payload: dict, field_mask: str) -> dict:
     headers = {
         "Content-Type": "application/json",
@@ -294,143 +289,6 @@ def search_places(city: str, district: Optional[str] = None, limit: int = 20) ->
     )
 
     return [_parse_place(p, city, district) for p in data.get("places", [])]
-
-
-def search_places_near(
-    city: str,
-    latitude: float,
-    longitude: float,
-    district: Optional[str] = None,
-    limit: int = 20,
-) -> List[Dict]:
-    if city not in CITY_COORDS:
-        return []
-
-    payload = {
-        "textQuery": _text_query(city, district),
-        "locationBias": {
-            "circle": {
-                "center": {"latitude": latitude, "longitude": longitude},
-                "radius": 2500.0,
-            }
-        },
-        "includedType": "cafe",
-        "maxResultCount": min(max(limit, 1), 20),
-        "languageCode": "zh-TW",
-        "regionCode": "TW",
-    }
-
-    data = _post_places(
-        PLACES_TEXT_ENDPOINT,
-        payload,
-        CAFE_FIELD_MASK,
-    )
-
-    return [_parse_place(p, city, district) for p in data.get("places", [])]
-
-
-def has_cafes_near_transit(
-    city: str,
-    transit_lat: float,
-    transit_lng: float,
-    district: Optional[str] = None,
-    max_walk_minutes: int = 10,
-) -> bool:
-    cafes = search_places_near(
-        city=city,
-        latitude=transit_lat,
-        longitude=transit_lng,
-        district=district,
-        limit=5,
-    )
-    max_km = (max_walk_minutes / 60.0) * 5.0
-    for cafe in cafes:
-        lat = cafe.get("latitude")
-        lng = cafe.get("longitude")
-        if lat is None or lng is None:
-            continue
-        if haversine_km(lat, lng, transit_lat, transit_lng) <= max_km:
-            return True
-    return False
-
-
-def search_transit_points(
-    city: str,
-    district: Optional[str] = None,
-    query: Optional[str] = None,
-    limit: int = 20,
-) -> List[Dict]:
-    if city not in CITY_COORDS:
-        return []
-    lat, lng = CITY_COORDS[city]
-
-    payload_base = {
-        "locationBias": {
-            "circle": {
-                "center": {"latitude": lat, "longitude": lng},
-                "radius": 12000.0,
-            }
-        },
-        "maxResultCount": min(max(limit, 1), 20),
-        "languageCode": "zh-TW",
-        "regionCode": "TW",
-    }
-
-    def to_points(data: dict) -> List[Dict]:
-        points: List[Dict] = []
-        for p in data.get("places", []):
-            loc = p.get("location") or {}
-            if loc.get("latitude") is None or loc.get("longitude") is None:
-                continue
-            points.append(
-                {
-                    "id": p.get("id", ""),
-                    "name": (p.get("displayName") or {}).get("text", ""),
-                    "latitude": loc.get("latitude"),
-                    "longitude": loc.get("longitude"),
-                }
-            )
-        return points
-
-    if query:
-        payload = {**payload_base, "textQuery": query}
-        data = _post_places(
-            PLACES_TEXT_ENDPOINT,
-            payload,
-            "places.id,places.displayName,places.location",
-        )
-        points = to_points(data)
-        deduped: Dict[str, Dict] = {}
-        for point in points:
-            name = (point.get("name") or "").strip()
-            if not name:
-                continue
-            deduped.setdefault(name, point)
-        return list(deduped.values())
-
-    if district:
-        text_query = f"{district} 交通站"
-    else:
-        text_query = "交通站"
-
-    results: Dict[str, Dict] = {}
-    for place_type in ["transit_station", "bus_stop"]:
-        payload = {**payload_base, "textQuery": text_query, "includedType": place_type}
-        data = _post_places(
-            PLACES_TEXT_ENDPOINT,
-            payload,
-            "places.id,places.displayName,places.location",
-        )
-        for p in to_points(data):
-            results[p["id"]] = p
-
-    by_name: Dict[str, Dict] = {}
-    for point in results.values():
-        name = (point.get("name") or "").strip()
-        if not name:
-            continue
-        by_name.setdefault(name, point)
-    return list(by_name.values())
 
 
 def search_nearby_cafes(

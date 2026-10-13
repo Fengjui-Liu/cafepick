@@ -1,243 +1,244 @@
-import { useState, useEffect } from "react";
-import { GoogleMap } from "@/components/GoogleMap";
-import { FilterPanel } from "@/components/FilterPanel";
-import { PlaceCard } from "@/components/PlaceCard";
-import { getRecommendations, getAreas, getArea, getTransitPoints } from "@/services/api";
-import type { Filters, Area } from "@/types/cafe";
-import type { PlaceRecommendation, Place } from "@/types/place";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { GoogleMap, type MapPin } from "@/components/GoogleMap";
+import { ModePicker } from "@/components/ModePicker";
+import { OriginPicker } from "@/components/OriginPicker";
+import { ResultCard } from "@/components/ResultCard";
+import { getCurrentPosition } from "@/lib/location";
+import { recommend } from "@/services/api";
+import type { Mode, Recommendation, RecommendResponse } from "@/types/place";
 
-const defaultFilters: Filters = {
-  city: "taipei",
-  district: "",
-  keyword: "",
-  mrt_station: "",
-  bus_stop: "",
-  wifi: false,
-  socket: false,
-  quiet_level: "",
-  max_price: null,
-  limited_time: "",
-  reservable: false,
-};
+type Origin = { kind: "gps"; lat: number; lng: number } | { kind: "station"; name: string };
 
 function App() {
-  const [filters, setFilters] = useState<Filters>(defaultFilters);
-  const [recommendations, setRecommendations] = useState<PlaceRecommendation[]>(
-    []
-  );
-  const [areas, setAreas] = useState<Area[]>([]);
-  const [districts, setDistricts] = useState<string[]>([]);
-  const [transitPoints, setTransitPoints] = useState<Place[]>([]);
-  const [selectedTransitId, setSelectedTransitId] = useState<string>("");
-  const [transitQuery, setTransitQuery] = useState<string>("");
-  const [transitLoading, setTransitLoading] = useState(false);
-  const [transitMessage, setTransitMessage] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [highlightedId, setHighlightedId] = useState<string | null>(null);
-  const [hasSearched, setHasSearched] = useState(false);
-  const [searchError, setSearchError] = useState("");
+  const [mode, setMode] = useState<Mode | null>(null);
+  const [pet, setPet] = useState(false);
+  const [origin, setOrigin] = useState<Origin | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerMessage, setPickerMessage] = useState("");
 
+  const [result, setResult] = useState<RecommendResponse | null>(null);
+  const [shownIds, setShownIds] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const [error, setError] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const requestId = useRef(0);
+  const cardRefs = useRef<Map<string, HTMLElement>>(new Map());
+
+  const fetchResults = useCallback(
+    async (exclude: string[]) => {
+      if (!mode || !origin) return;
+      const id = ++requestId.current;
+      setLoading(true);
+      setError("");
+      try {
+        const data = await recommend({
+          mode,
+          origin: origin.kind === "gps" ? { lat: origin.lat, lng: origin.lng } : { station: origin.name },
+          pet,
+          exclude,
+        });
+        if (id !== requestId.current) return; // a newer search started meanwhile
+        setResult(data);
+        setShownIds([...exclude, ...data.recommendations.map((r) => r.cafe.id)]);
+        setSelectedId(null);
+      } catch (err) {
+        if (id !== requestId.current) return;
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (id === requestId.current) setLoading(false);
+      }
+    },
+    [mode, origin, pet]
+  );
+
+  // New scenario, place or pet setting → fresh top 3.
   useEffect(() => {
-    getAreas()
-      .then((areas) => {
-        setAreas(areas);
-        const initial = areas.find((a) => a.city === defaultFilters.city);
-        if (initial) {
-          getArea(initial.city)
-            .then((detail) => {
-              setDistricts(detail.districts?.map((d) => d.name) ?? []);
-            })
-            .catch(console.error);
-        }
-      })
-      .catch(console.error);
+    fetchResults([]);
+  }, [fetchResults]);
+
+  const locate = async () => {
+    setLocating(true);
+    try {
+      const pos = await getCurrentPosition();
+      setOrigin({ kind: "gps", ...pos });
+      setPickerOpen(false);
+    } catch (err) {
+      setPickerMessage(err instanceof Error ? err.message : "定位失敗，請改選捷運站");
+      setPickerOpen(true);
+    } finally {
+      setLocating(false);
+    }
+  };
+
+  const chooseMode = (next: Mode) => {
+    setMode(next);
+    if (!origin && !locating) locate();
+  };
+
+  const openPicker = () => {
+    setPickerMessage("");
+    setPickerOpen(true);
+  };
+
+  const recs: Recommendation[] = useMemo(() => result?.recommendations ?? [], [result]);
+
+  const pins: MapPin[] = useMemo(
+    () =>
+      recs.map((r) => ({
+        id: r.cafe.id,
+        name: r.cafe.name,
+        latitude: r.cafe.latitude,
+        longitude: r.cafe.longitude,
+      })),
+    [recs]
+  );
+
+  const mapOrigin = useMemo(() => {
+    if (origin?.kind === "gps") return { lat: origin.lat, lng: origin.lng };
+    const o = result?.origin;
+    return o?.latitude != null && o?.longitude != null ? { lat: o.latitude, lng: o.longitude } : null;
+  }, [origin, result]);
+
+  const selectPin = useCallback((id: string) => {
+    setSelectedId(id);
+    cardRefs.current.get(id)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, []);
 
-  useEffect(() => {
-    if (!filters.city) return;
-    setSelectedTransitId("");
-    getArea(filters.city)
-      .then((detail) => {
-        const districtNames = detail.districts?.map((d) => d.name) ?? [];
-        setDistricts(districtNames);
-        if (filters.district && !districtNames.includes(filters.district)) {
-          setFilters((prev) => ({ ...prev, district: "" }));
-        }
-      })
-      .catch(console.error);
-  }, [filters.city]);
+  const originLabel =
+    origin?.kind === "station" ? `🚇 ${origin.name}站` : origin?.kind === "gps" ? "📍 目前位置" : "📍 選擇地點";
 
-  useEffect(() => {
-    if (!filters.city) return;
-    const district = filters.district || undefined;
-    setTransitMessage("");
-    getTransitPoints(filters.city, district)
-      .then((points) => setTransitPoints(points))
-      .catch(console.error);
-  }, [filters.city, filters.district]);
+  const picker = pickerOpen && (
+    <OriginPicker
+      message={pickerMessage}
+      onUseLocation={locate}
+      onStation={(name) => {
+        setOrigin({ kind: "station", name });
+        setPickerOpen(false);
+      }}
+      onClose={() => setPickerOpen(false)}
+    />
+  );
 
-  const handleSearch = async (overrideTransit?: Place) => {
-    setLoading(true);
-    setHasSearched(true);
-    setSearchError("");
-    try {
-      const transit =
-        overrideTransit ?? transitPoints.find((p) => p.id === selectedTransitId);
-      const results = await getRecommendations(
-        filters.city,
-        filters.district,
-        filters.keyword,
-        8,
-        transit
-          ? { name: transit.name, latitude: transit.latitude, longitude: transit.longitude }
-          : undefined,
-        10
-      );
-      setRecommendations(results);
-    } catch (err) {
-      console.error("Failed to fetch recommendations:", err);
-      setRecommendations([]);
-      setSearchError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  };
+  // ── Home: pick a scenario ────────────────────────────────────────────────
+  if (!mode || !origin) {
+    return (
+      <div className="mx-auto flex min-h-screen max-w-md flex-col px-4 pt-10 pb-8">
+        <h1 className="font-display text-4xl font-semibold">CaféPick</h1>
+        <p className="mt-2 text-[var(--muted-foreground)]">現在要去咖啡廳做什麼？</p>
 
-  const handleTransitSearch = async () => {
-    const q = transitQuery.trim();
-    if (!q) return;
-    setTransitLoading(true);
-    setTransitMessage("");
-    try {
-      const points = await getTransitPoints(filters.city, filters.district, q);
-      setTransitPoints(points);
-      if (points.length === 0) {
-        setSelectedTransitId("");
-        setTransitMessage("找不到可用交通點，請換關鍵字。");
-        return;
-      }
-      const first = points[0];
-      setSelectedTransitId(first.id);
-      setTransitMessage(`找到 ${points.length} 個地點，已自動選擇「${first.name}」。`);
-      await handleSearch(first);
-    } catch (err) {
-      console.error("Failed to fetch transit points:", err);
-      setTransitMessage("查詢失敗，請稍後再試。");
-    } finally {
-      setTransitLoading(false);
-    }
-  };
+        <div className="mt-8">
+          <ModePicker mode={mode} pet={pet} onMode={chooseMode} onPet={setPet} disabled={locating} />
+        </div>
 
-  const handleCafeClick = (cafe: Place) => {
-    setHighlightedId(cafe.id);
-  };
+        <div className="mt-6 text-sm text-[var(--muted-foreground)]">
+          {locating ? (
+            "📍 定位中…"
+          ) : (
+            <>
+              會從{origin ? <b> {originLabel} </b> : "你的目前位置"}找附近的店 ·{" "}
+              <button type="button" onClick={openPicker} className="underline cursor-pointer">
+                改選捷運站
+              </button>
+            </>
+          )}
+        </div>
+        {picker}
+      </div>
+    );
+  }
 
-  const allPlaces = recommendations.map((r) => r.cafe);
-
+  // ── Results: map + 3 cards ───────────────────────────────────────────────
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-[var(--border)] bg-[var(--card)]/70 backdrop-blur">
-        <div className="max-w-7xl mx-auto px-6 py-5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-2xl bg-[var(--primary)] text-[var(--primary-foreground)] grid place-items-center shadow-sm">
-              ☕️
-            </div>
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight font-display">
-                CafePick
-              </h1>
-              <p className="text-sm text-[var(--muted-foreground)]">
-                使用 Google Places 取得最新咖啡廳資訊
-              </p>
-            </div>
-          </div>
+    <div className="flex min-h-screen flex-col md:h-screen">
+      <header className="sticky top-0 z-30 border-b border-[var(--border)] bg-[var(--background)]/95 backdrop-blur px-4 py-3 space-y-2 md:flex md:items-center md:gap-6 md:space-y-0">
+        <div className="flex items-center justify-between gap-3 md:contents">
+          <button
+            type="button"
+            onClick={() => {
+              setMode(null);
+              setResult(null);
+            }}
+            className="font-display text-xl font-semibold cursor-pointer"
+          >
+            CaféPick
+          </button>
+          <button
+            type="button"
+            onClick={openPicker}
+            className="md:order-3 md:ml-auto truncate rounded-full border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-sm cursor-pointer"
+          >
+            {originLabel} ▾
+          </button>
+        </div>
+        <div className="md:order-2">
+          <ModePicker mode={mode} pet={pet} onMode={setMode} onPet={setPet} compact />
         </div>
       </header>
 
-      <section className="max-w-7xl mx-auto px-6 py-8">
-        <div className="rounded-3xl border border-[var(--border)] bg-[var(--card)]/80 hero-glow panel-shadow px-8 py-10">
-          <h2 className="text-3xl md:text-4xl font-semibold font-display fade-up">
-            CafePick
-          </h2>
+      <div className="flex flex-1 flex-col md:flex-row md:overflow-hidden">
+        <div className="h-[38vh] md:order-2 md:h-auto md:flex-1">
+          <GoogleMap pins={pins} origin={mapOrigin} highlightedId={selectedId} onPinClick={selectPin} />
         </div>
-      </section>
 
-      <main className="max-w-7xl mx-auto px-6 pb-12">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <aside className="lg:col-span-3">
-            <div className="sticky top-6 rounded-2xl border border-[var(--border)] bg-[var(--card)]/90 p-5 panel-shadow fade-up delay-2">
-              <h2 className="font-semibold text-lg mb-4 font-display">
-                篩選條件
-              </h2>
-              <FilterPanel
-                filters={filters}
-                onChange={setFilters}
-                onSearch={() => handleSearch()}
-                areas={areas}
-                districts={districts}
-                transitPoints={transitPoints}
-                selectedTransitId={selectedTransitId}
-                onTransitChange={setSelectedTransitId}
-                transitQuery={transitQuery}
-                onTransitQueryChange={setTransitQuery}
-                onTransitSearch={handleTransitSearch}
-                transitLoading={transitLoading}
-                transitMessage={transitMessage}
-                loading={loading}
-              />
+        <section className="flex-1 space-y-3 p-4 md:order-1 md:w-[420px] md:flex-none md:overflow-y-auto">
+          {error && (
+            <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800 break-all">
+              {error}
+            </p>
+          )}
+
+          {loading && recs.length === 0 && (
+            <p className="py-8 text-center text-[var(--muted-foreground)]">幫你挑選中…</p>
+          )}
+
+          {!loading && !error && result && recs.length === 0 && (
+            <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 text-sm">
+              <p className="font-medium">附近沒有符合的店</p>
+              <p className="mt-1 text-[var(--muted-foreground)]">
+                {pet ? "可以試試關掉「帶毛孩」，或" : "可以"}
+                <button type="button" onClick={openPicker} className="underline cursor-pointer">
+                  換個地點
+                </button>
+                。
+              </p>
             </div>
-          </aside>
+          )}
 
-          <div className="lg:col-span-9 space-y-6">
-            <div className="rounded-2xl border border-[var(--border)] overflow-hidden h-[420px] panel-shadow fade-up">
-              {hasSearched && allPlaces.length > 0 ? (
-                <GoogleMap
-                  places={allPlaces}
-                  highlightedId={highlightedId ?? undefined}
-                  onPlaceClick={handleCafeClick}
+          <div className={`space-y-3 ${loading ? "opacity-50" : ""}`}>
+            {recs.map((rec, i) => (
+              <div
+                key={rec.cafe.id}
+                ref={(el) => {
+                  if (el) cardRefs.current.set(rec.cafe.id, el);
+                  else cardRefs.current.delete(rec.cafe.id);
+                }}
+              >
+                <ResultCard
+                  rec={rec}
+                  rank={i + 1}
+                  pet={pet}
+                  highlighted={selectedId === rec.cafe.id}
+                  onSelect={() => setSelectedId(rec.cafe.id)}
                 />
-              ) : (
-                <div className="h-full flex items-center justify-center bg-[var(--muted)]">
-                  <div className="text-center">
-                    <p className="text-4xl mb-2">&#9749;</p>
-                    <p className="text-[var(--muted-foreground)]">
-                      選擇縣市後按「幫我推薦」開始探索
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {hasSearched && (
-              <div>
-                <h2 className="font-semibold text-lg mb-3 font-display">
-                  {searchError
-                    ? "推薦失敗"
-                    : recommendations.length > 0
-                    ? `為你推薦 ${recommendations.length} 間咖啡廳`
-                    : "沒有找到符合條件的咖啡廳"}
-                </h2>
-                {searchError && (
-                  <p className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 break-all">
-                    {searchError}
-                  </p>
-                )}
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                  {recommendations.map((rec, i) => (
-                    <PlaceCard
-                      key={rec.cafe.id}
-                      recommendation={rec}
-                      rank={i + 1}
-                      isHighlighted={highlightedId === rec.cafe.id}
-                      onHover={setHighlightedId}
-                    />
-                  ))}
-                </div>
               </div>
-            )}
+            ))}
           </div>
-        </div>
-      </main>
+
+          {recs.length > 0 && (
+            <button
+              type="button"
+              disabled={loading || !result?.has_more}
+              onClick={() => fetchResults(shownIds)}
+              className="h-12 w-full rounded-2xl border border-[var(--border)] bg-[var(--card)] font-medium cursor-pointer disabled:opacity-50 disabled:cursor-default"
+            >
+              {loading ? "挑選中…" : result?.has_more ? "都不喜歡？換 3 間" : "附近沒有更多了"}
+            </button>
+          )}
+        </section>
+      </div>
+      {picker}
     </div>
   );
 }

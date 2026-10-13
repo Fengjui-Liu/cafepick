@@ -52,12 +52,6 @@ export interface Place {
   nomad?: { id: string; name: string; match_confidence: number } | null;
 }
 
-export interface PlaceRecommendation {
-  cafe: Place;
-  score: number | null;
-  distance_km: number | null;
-}
-
 export type Mode = "work" | "date" | "quick";
 export type PetStatus = "yes" | "no" | "unknown";
 
