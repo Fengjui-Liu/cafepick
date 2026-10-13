@@ -172,7 +172,7 @@ function App() {
               <FilterPanel
                 filters={filters}
                 onChange={setFilters}
-                onSearch={handleSearch}
+                onSearch={() => handleSearch()}
                 areas={areas}
                 districts={districts}
                 transitPoints={transitPoints}

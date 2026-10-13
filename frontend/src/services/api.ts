@@ -12,7 +12,12 @@ async function fetchJSON<T>(url: string): Promise<T> {
   }
   if (!res.ok) {
     const body = await res.json().catch(() => null);
-    throw new Error(body?.detail ?? `API error: ${res.status}`);
+    const detail = body?.detail;
+    // FastAPI validation errors come back as a list of {loc, msg}.
+    const message = Array.isArray(detail)
+      ? detail.map((d) => `${(d.loc ?? []).join(".")}: ${d.msg}`).join("；")
+      : detail;
+    throw new Error(message || `API error: ${res.status}`);
   }
   return res.json();
 }
