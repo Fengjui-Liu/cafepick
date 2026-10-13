@@ -26,3 +26,13 @@ def test_status(temp_db, stations):
     nomad_store.save([nomad_item()])
     body = TestClient(app).get("/api/status").json()
     assert body["nomad_cafes"] == 1 and body["mrt_stations"] == 3
+
+
+def test_places_error_is_explained(monkeypatch):
+    def boom(*a, **k):
+        raise RuntimeError('Places API error 403: {"error": {"status": "PERMISSION_DENIED", "details": [{"reason": "API_KEY_HTTP_REFERRER_BLOCKED"}]}}')
+
+    monkeypatch.setattr(cafes_route, "search_places", boom)
+    res = TestClient(app).get("/api/cafes/recommend", params={"city": "taipei"})
+    assert res.status_code == 502
+    assert "網站（HTTP 參照網址）限制" in res.json()["detail"]

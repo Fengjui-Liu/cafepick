@@ -35,6 +35,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
+  const [searchError, setSearchError] = useState("");
 
   useEffect(() => {
     getAreas()
@@ -78,6 +79,7 @@ function App() {
   const handleSearch = async (overrideTransit?: Place) => {
     setLoading(true);
     setHasSearched(true);
+    setSearchError("");
     try {
       const transit =
         overrideTransit ?? transitPoints.find((p) => p.id === selectedTransitId);
@@ -94,6 +96,8 @@ function App() {
       setRecommendations(results);
     } catch (err) {
       console.error("Failed to fetch recommendations:", err);
+      setRecommendations([]);
+      setSearchError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -207,10 +211,17 @@ function App() {
             {hasSearched && (
               <div>
                 <h2 className="font-semibold text-lg mb-3 font-display">
-                  {recommendations.length > 0
+                  {searchError
+                    ? "推薦失敗"
+                    : recommendations.length > 0
                     ? `為你推薦 ${recommendations.length} 間咖啡廳`
                     : "沒有找到符合條件的咖啡廳"}
                 </h2>
+                {searchError && (
+                  <p className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 break-all">
+                    {searchError}
+                  </p>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                   {recommendations.map((rec, i) => (
                     <PlaceCard

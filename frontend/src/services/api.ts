@@ -4,8 +4,16 @@ import type { PlaceRecommendation, Place, Mode, RecommendResponse } from "@/type
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 async function fetchJSON<T>(url: string): Promise<T> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  let res: Response;
+  try {
+    res = await fetch(url);
+  } catch {
+    throw new Error(`連不到後端 ${API_BASE}，請確認 run_dev.sh 有在跑`);
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.detail ?? `API error: ${res.status}`);
+  }
   return res.json();
 }
 
